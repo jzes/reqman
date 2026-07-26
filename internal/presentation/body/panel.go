@@ -6,10 +6,13 @@ import (
 	"os/exec"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
+	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 type Mode int
@@ -38,6 +41,7 @@ func NewPanel() Panel {
 	body.Placeholder = "(empty)"
 	body.Prompt = ""
 	body.ShowLineNumbers = false
+	body.Cursor.SetMode(cursor.CursorStatic)
 	body.Blur()
 	return Panel{textArea: body}
 }
@@ -48,6 +52,7 @@ func (p Panel) Mode() Mode {
 
 func (p *Panel) SetMode(mode Mode) {
 	p.mode = mode
+	p.syncCursorMode()
 }
 
 func (p Panel) Value() string {
@@ -64,6 +69,7 @@ func (p *Panel) Blur() {
 
 func (p *Panel) EnterNavigationMode() tea.Cmd {
 	p.mode = NavigateMode
+	p.syncCursorMode()
 	cmd := p.textArea.Focus()
 	p.MoveCursorToStart()
 	return cmd
@@ -78,10 +84,12 @@ func (p *Panel) HandleEscape() EscapeResult {
 	case InsertMode:
 		p.PersistChanges()
 		p.mode = NavigateMode
+		p.syncCursorMode()
 		return EscapeToNavigation
 	case NavigateMode:
 		p.PersistChanges()
 		p.mode = PanelMode
+		p.syncCursorMode()
 		p.Blur()
 		return EscapeToPanel
 	}
@@ -156,8 +164,13 @@ func (p *Panel) UpdateNavigationMode(msg tea.KeyMsg) (tea.Cmd, bool) {
 
 	switch msg.Runes[0] {
 	case 'i':
-		p.mode = InsertMode
-		return p.textArea.Focus(), true
+		return p.enterInsertMode(), true
+	case 'a':
+		p.updateTextAreaWithKey(tea.KeyMsg{Type: tea.KeyRight})
+		return p.enterInsertMode(), true
+	case 'A':
+		p.textArea.CursorEnd()
+		return p.enterInsertMode(), true
 	case 'h':
 		return p.updateTextAreaWithKey(tea.KeyMsg{Type: tea.KeyLeft}), true
 	case 'j':
@@ -187,6 +200,10 @@ func (p Panel) View(width, height int, focused bool) string {
 	} else {
 		textArea.Blur()
 	}
+	if focused && p.mode == InsertMode {
+		textArea.Cursor.SetMode(cursor.CursorHide)
+		return p.viewWithBarCursor(textArea.View(), width)
+	}
 	return textArea.View()
 }
 
@@ -204,6 +221,10 @@ func (p Panel) Style(style lipgloss.Style, focused bool) lipgloss.Style {
 	}
 }
 
+func (p Panel) CursorMode() cursor.Mode {
+	return p.textArea.Cursor.Mode()
+}
+
 func (p *Panel) MoveCursorToStart() {
 	p.updateTextAreaWithKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'<'}, Alt: true})
 }
@@ -212,6 +233,104 @@ func (p *Panel) updateTextAreaWithKey(msg tea.KeyMsg) tea.Cmd {
 	var cmd tea.Cmd
 	p.textArea, cmd = p.textArea.Update(msg)
 	return cmd
+}
+
+func (p *Panel) enterInsertMode() tea.Cmd {
+	p.mode = InsertMode
+	p.syncCursorMode()
+	return p.textArea.Focus()
+}
+
+func (p *Panel) syncCursorMode() {
+	mode := cursor.CursorStatic
+	if p.mode == InsertMode {
+		mode = cursor.CursorBlink
+	}
+	p.textArea.Cursor.SetMode(mode)
+}
+
+func (p Panel) viewWithBarCursor(view string, width int) string {
+	lines := strings.Split(view, "\n")
+	if len(lines) == 0 {
+		return view
+	}
+
+	row := p.cursorDisplayRow(width)
+	if row < 0 {
+		row = 0
+	}
+	if row >= len(lines) {
+		row = len(lines) - 1
+	}
+
+	column := p.textArea.LineInfo().ColumnOffset
+	lines[row] = replaceAtVisibleColumn(lines[row], column, "|")
+	return strings.Join(lines, "\n")
+}
+
+func (p Panel) cursorDisplayRow(width int) int {
+	if width <= 0 {
+		return 0
+	}
+
+	row := 0
+	lines := strings.Split(p.textArea.Value(), "\n")
+	currentLine := p.textArea.Line()
+	for i := 0; i < currentLine && i < len(lines); i++ {
+		row += wrappedLineCount(lines[i], width)
+	}
+	return row + p.textArea.LineInfo().RowOffset
+}
+
+func wrappedLineCount(line string, width int) int {
+	if width <= 0 {
+		return 1
+	}
+	lineWidth := ansi.StringWidth(line)
+	if lineWidth == 0 {
+		return 1
+	}
+	return (lineWidth + width - 1) / width
+}
+
+func replaceAtVisibleColumn(line string, column int, value string) string {
+	visibleColumn := 0
+	for i := 0; i < len(line); {
+		if line[i] == '\x1b' {
+			i = skipANSISequence(line, i)
+			continue
+		}
+
+		r, size := utf8.DecodeRuneInString(line[i:])
+		if r == utf8.RuneError && size == 0 {
+			break
+		}
+		if visibleColumn >= column {
+			return line[:i] + value + line[i+size:]
+		}
+		visibleColumn += ansi.StringWidth(string(r))
+		i += size
+	}
+
+	return line + value
+}
+
+func skipANSISequence(line string, start int) int {
+	if start+1 < len(line) && line[start+1] == '[' {
+		for i := start + 2; i < len(line); i++ {
+			if line[i] >= '@' && line[i] <= '~' {
+				return i + 1
+			}
+		}
+		return len(line)
+	}
+
+	for i := start + 1; i < len(line); i++ {
+		if line[i] >= '@' && line[i] <= '~' {
+			return i + 1
+		}
+	}
+	return len(line)
 }
 
 func (p *Panel) moveCursorToWordEnd() tea.Cmd {

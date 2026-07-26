@@ -2,9 +2,11 @@
 package presentation
 
 import (
+	"path/filepath"
 	"regexp"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -17,7 +19,7 @@ import (
 const (
 	sidebarContentWidth  = 25
 	methodContentWidth   = 14
-	doButtonContentWidth = 8
+	doButtonContentWidth = 10
 	defaultScreenWidth   = 100
 	defaultScreenHeight  = 30
 )
@@ -68,7 +70,7 @@ var (
 )
 
 type Screen struct {
-	textInput            string
+	url                  urlPanel
 	body                 presentationbody.Panel
 	methodList           list.Model
 	methodSelectorOpen   bool
@@ -80,8 +82,11 @@ type Screen struct {
 	width                int
 	height               int
 	requestWriter        presentationrequest.RequestWriter
+	requestDirectory     string
 	requestDoer          presentationrequest.RequestDoer
+	statusSpinner        spinner.Model
 	commandPanel         presentationcommandpanel.Panel
+	newRequestPanel      presentationcommandpanel.Panel
 	response             request.Response
 	hasResponse          bool
 	responseError        string
@@ -89,13 +94,24 @@ type Screen struct {
 }
 
 func NewScreen(requests []request.Request, rw presentationrequest.RequestWriter, rd presentationrequest.RequestDoer) Screen {
+	return NewScreenWithDirectory(requests, inferRequestDirectory(requests), rw, rd)
+}
+
+func NewScreenWithDirectory(requests []request.Request, requestDirectory string, rw presentationrequest.RequestWriter, rd presentationrequest.RequestDoer) Screen {
+	if requestDirectory == "" {
+		requestDirectory = "."
+	}
+
 	screen := Screen{
-		requests:      requests,
-		headersEditor: newHeadersEditor(),
-		body:          presentationbody.NewPanel(),
-		methodList:    newMethodList(),
-		requestWriter: rw,
-		requestDoer:   rd,
+		requests:         requests,
+		headersEditor:    newHeadersEditor(),
+		url:              newURLPanel(),
+		body:             presentationbody.NewPanel(),
+		methodList:       newMethodList(),
+		statusSpinner:    spinner.New(spinner.WithSpinner(spinner.Line)),
+		requestWriter:    rw,
+		requestDirectory: requestDirectory,
+		requestDoer:      rd,
 	}
 
 	screen.showSelectedRequestURL()
@@ -103,6 +119,15 @@ func NewScreen(requests []request.Request, rw presentationrequest.RequestWriter,
 	screen.showSelectedRequestBody()
 	screen.showSelectedRequestMethod()
 	return screen
+}
+
+func inferRequestDirectory(requests []request.Request) string {
+	for _, req := range requests {
+		if req.Path != "" {
+			return filepath.Dir(req.Path)
+		}
+	}
+	return "."
 }
 
 func (m Screen) Init() tea.Cmd {
@@ -116,6 +141,14 @@ func (m Screen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case presentationrequest.RequestResultMessage:
 		msg.UpdateTarget(&m)
 		return m, nil
+	case spinner.TickMsg:
+		if !m.requestInFlight {
+			return m, nil
+		}
+
+		var cmd tea.Cmd
+		m.statusSpinner, cmd = m.statusSpinner.Update(msg)
+		return m, cmd
 	case tea.KeyMsg:
 		return m.processKeyMessage(msg)
 	}

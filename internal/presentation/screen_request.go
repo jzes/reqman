@@ -1,6 +1,9 @@
 package presentation
 
 import (
+	"path/filepath"
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/jzes/reqman/internal/domain/request"
@@ -29,6 +32,40 @@ func (scr *Screen) selectPreviousRequest() {
 	}
 }
 
+func (scr *Screen) createRequest(name string) {
+	name = strings.TrimSpace(name)
+	if name == "" || scr.requestWriter == nil {
+		return
+	}
+	if filepath.Ext(name) != ".curl" {
+		name += ".curl"
+	}
+	name = filepath.Base(name)
+
+	newRequest := request.Request{
+		Name:    name,
+		Path:    filepath.Join(scr.requestDirectory, name),
+		Method:  request.MethodGet,
+		Headers: make(map[string]string),
+	}
+	if err := scr.requestWriter.WriteToFile(newRequest); err != nil {
+		return
+	}
+
+	scr.requests = append(scr.requests, newRequest)
+	scr.selectedRequestIndex = len(scr.requests) - 1
+	scr.showSelectedRequestURL()
+	scr.showSelectedRequestHeaders()
+	scr.showSelectedRequestBody()
+	scr.showSelectedRequestMethod()
+	scr.clearResponse()
+	scr.focusedPanel = focusedPanelURL
+	scr.insertMode = true
+	scr.url.EnterInsertMode()
+	scr.methodSelectorOpen = false
+	scr.body.Blur()
+}
+
 func (scr *Screen) clearResponse() {
 	scr.hasResponse = false
 	scr.responseError = ""
@@ -37,11 +74,11 @@ func (scr *Screen) clearResponse() {
 
 func (scr *Screen) showSelectedRequestURL() {
 	if len(scr.requests) == 0 {
-		scr.textInput = ""
+		scr.url.SetValue("")
 		return
 	}
 
-	scr.textInput = scr.requests[scr.selectedRequestIndex].URL.String()
+	scr.url.SetValue(scr.requests[scr.selectedRequestIndex].URL.String())
 }
 
 func (scr *Screen) showSelectedRequestHeaders() {
@@ -98,7 +135,7 @@ func (scr *Screen) syncURLToSelectedRequest() {
 		return
 	}
 
-	url, err := request.NewURL(scr.textInput)
+	url, err := request.NewURL(scr.url.Value())
 	if err != nil {
 		return
 	}

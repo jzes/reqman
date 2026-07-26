@@ -58,8 +58,8 @@ func (scr Screen) View() string {
 	methodPanel := renderPanelWithTitle(methodStyle, "Method", focusedStyle.Render("> ")+scr.renderMethodSelector())
 	doButton := scr.renderDoButton()
 	urlContentWidth := max(0, detailsWidth-lipgloss.Width(methodPanel)-lipgloss.Width(doButton)-inputStyle.GetHorizontalFrameSize())
-	urlStyle := styleForPanel(inputStyle.Width(urlContentWidth), scr.focusedPanel == focusedPanelURL, scr.insertMode)
-	requestURL := textWithCursor(scr.textInput, scr.focusedPanel == focusedPanelURL && scr.insertMode)
+	urlStyle := scr.url.Style(inputStyle.Width(urlContentWidth), scr.focusedPanel == focusedPanelURL)
+	requestURL := scr.url.View(urlContentWidth, scr.focusedPanel == focusedPanelURL)
 	urlPanel := renderPanelWithTitle(urlStyle, "URL", focusedStyle.Render("> ")+requestURL)
 	requestLine := lipgloss.JoinHorizontal(lipgloss.Top, methodPanel, urlPanel, doButton)
 
@@ -81,6 +81,7 @@ func (scr Screen) View() string {
 	details := lipgloss.JoinVertical(lipgloss.Left, requestLine, headers, body, response)
 
 	mainView := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, details)
+	mainView = scr.newRequestPanel.Render(mainView, screenWidth)
 	return scr.commandPanel.Render(mainView, screenWidth)
 }
 
@@ -140,12 +141,12 @@ func (scr Screen) renderDoButton() string {
 		panelStyle = panelStyle.BorderForeground(lipgloss.Color("#F1FA8C"))
 	}
 
-	content := "Do"
+	content := "Ready"
 	if scr.requestInFlight {
-		content = "Busy"
+		content = "Doing... " + scr.statusSpinner.View()
 	}
 
-	return renderPanelWithTitle(panelStyle, "Do Req", contentStyle.Render(content))
+	return renderPanelWithTitle(panelStyle, "Status", contentStyle.Render(content))
 }
 
 func (scr Screen) renderHeadersEditor(headerColumnWidth, valueColumnWidth int) string {

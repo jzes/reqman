@@ -29,11 +29,14 @@ func (scr Screen) processKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if !scr.requestInFlight {
 				if cmd := scr.requestCommand(); cmd != nil {
 					scr.requestInFlight = true
-					return scr, cmd
+					return scr, tea.Batch(cmd, scr.statusSpinner.Tick)
 				}
 			}
 		}
 		return scr, nil
+	}
+	if scr.newRequestPanel.Open {
+		return scr.processNewRequestPanel(msg)
 	}
 	if msg.Type == tea.KeyEsc {
 		return scr.processEscapeKey()
@@ -47,6 +50,17 @@ func (scr Screen) processKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (scr Screen) processEscapeKey() (tea.Model, tea.Cmd) {
+	if scr.focusedPanel == focusedPanelURL {
+		result := scr.url.HandleEscape()
+		if result == urlEscapeIgnored {
+			return scr, nil
+		}
+		scr.syncURLToSelectedRequest()
+		if result == urlEscapeToPanel {
+			scr.insertMode = false
+		}
+		return scr, nil
+	}
 	if scr.focusedPanel == focusedPanelBody {
 		result := scr.body.HandleEscape()
 		if result == presentationbody.EscapeIgnored {
@@ -61,11 +75,9 @@ func (scr Screen) processEscapeKey() (tea.Model, tea.Cmd) {
 	if scr.focusedPanel == focusedPanelHeaders {
 		scr.syncHeadersToSelectedRequest()
 	}
-	if scr.focusedPanel == focusedPanelURL {
-		scr.syncURLToSelectedRequest()
-	}
 	scr.insertMode = false
 	scr.methodSelectorOpen = false
+	scr.url.Blur()
 	scr.body.Blur()
 	return scr, nil
 }
@@ -82,33 +94,32 @@ func (scr Screen) processNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	if msg.Type != tea.KeyRunes || len(msg.Runes) != 1 {
 		if msg.Type == tea.KeyEnter || msg.Type == tea.KeySpace {
-			if scr.focusedPanel == focusedPanelDoButton {
-				if scr.requestInFlight {
-					return scr, nil
-				}
-				if cmd := scr.requestCommand(); cmd != nil {
-					scr.requestInFlight = true
-					return scr, cmd
-				}
-				return scr, nil
-			}
 			scr.methodSelectorOpen = scr.focusedPanel == focusedPanelMethod
 		}
 		return scr, nil
 	}
 
 	switch msg.Runes[0] {
+	case 'a':
+		if scr.focusedPanel == focusedPanelRequests {
+			scr.newRequestPanel.ActivateWithTitle("New Request", "")
+		}
 	case 'h':
 		scr.focusLeftPanel()
 	case 'l':
 		scr.focusRightPanel()
 	case 'i':
+		if scr.focusedPanel == focusedPanelURL {
+			scr.insertMode = true
+			cmd := scr.url.EnterNavigationMode()
+			return scr, cmd
+		}
 		if scr.focusedPanel == focusedPanelBody {
 			scr.insertMode = true
 			cmd := scr.body.EnterNavigationMode()
 			return scr, cmd
 		}
-		if scr.focusedPanel != focusedPanelRequests && scr.focusedPanel != focusedPanelMethod {
+		if scr.focusedPanel != focusedPanelRequests && scr.focusedPanel != focusedPanelMethod && scr.focusedPanel != focusedPanelDoButton {
 			scr.insertMode = true
 			if scr.focusedPanel == focusedPanelHeaders {
 				scr.ensureEditableHeaderRow()
@@ -133,6 +144,24 @@ func (scr Screen) processNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return scr, nil
 }
 
+func (scr Screen) processNewRequestPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		scr.newRequestPanel.Close()
+		scr.focusedPanel = focusedPanelRequests
+	case tea.KeyEnter:
+		name := scr.newRequestPanel.Input
+		scr.newRequestPanel.Close()
+		scr.createRequest(name)
+	case tea.KeyRunes:
+		scr.newRequestPanel.Input += string(msg.Runes)
+	case tea.KeyBackspace:
+		scr.newRequestPanel.Input, _ = removeLastRune(scr.newRequestPanel.Input)
+	}
+
+	return scr, nil
+}
+
 func (scr Screen) processMethodSelector(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if msg.Type == tea.KeyEnter {
 		if method, ok := scr.methodList.SelectedItem().(methodItem); ok {
@@ -150,13 +179,16 @@ func (scr Screen) processMethodSelector(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (scr Screen) processInsertMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch scr.focusedPanel {
 	case focusedPanelURL:
-		switch msg.Type {
-		case tea.KeyRunes:
-			scr.textInput += string(msg.Runes)
-		case tea.KeyBackspace:
-			if len(scr.textInput) > 0 {
-				scr.textInput = scr.textInput[:len(scr.textInput)-1]
+		switch scr.url.Mode() {
+		case urlPanelModeNavigate:
+			cmd, _ := scr.url.UpdateNavigationMode(msg)
+			return scr, cmd
+		case urlPanelModeInsert:
+			cmd, changed := scr.url.UpdateEditor(msg)
+			if changed {
+				scr.syncURLToSelectedRequest()
 			}
+			return scr, cmd
 		}
 	case focusedPanelHeaders:
 		if scr.updateHeadersEditor(msg) {

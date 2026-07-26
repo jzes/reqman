@@ -1,11 +1,13 @@
 package presentation
 
 import (
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/jzes/reqman/internal/domain/request"
@@ -163,6 +165,186 @@ func TestBodyEditorSyncsBodyToSelectedRequest(t *testing.T) {
 	}
 }
 
+func TestURLEditorSyncsURLToSelectedRequest(t *testing.T) {
+	screen := newScreen([]request.Request{{}})
+	screen.focusedPanel = focusedPanelURL
+
+	screen = enterURLTextInsertMode(t, screen)
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("localhost/books")})
+
+	if got := screen.url.Value(); got != "localhost/books" {
+		t.Fatalf("URL input = %q, want localhost/books", got)
+	}
+	if got := screen.requests[0].URL.String(); got != "localhost/books" {
+		t.Fatalf("request URL = %q, want localhost/books", got)
+	}
+}
+
+func TestURLNormalModeIEntersNavigationMode(t *testing.T) {
+	screen := newScreen([]request.Request{{}})
+	screen.focusedPanel = focusedPanelURL
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	if !screen.insertMode {
+		t.Fatal("insert mode is false, want true")
+	}
+	if screen.url.Mode() != urlPanelModeNavigate {
+		t.Fatalf("URL mode = %v, want navigate", screen.url.Mode())
+	}
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	if got := screen.url.Value(); got != "" {
+		t.Fatalf("URL input = %q, want empty", got)
+	}
+}
+
+func TestURLNavigationModeIEntersTextInsertMode(t *testing.T) {
+	screen := newScreen([]request.Request{{}})
+	screen.focusedPanel = focusedPanelURL
+
+	screen = enterURLTextInsertMode(t, screen)
+	if screen.url.Mode() != urlPanelModeInsert {
+		t.Fatalf("URL mode = %v, want insert", screen.url.Mode())
+	}
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	if got := screen.url.Value(); got != "x" {
+		t.Fatalf("URL input = %q, want x", got)
+	}
+}
+
+func TestURLNavigationModeAEntersTextInsertModeAfterCurrentCharacter(t *testing.T) {
+	parsedURL, err := request.NewURL("abc/def")
+	if err != nil {
+		t.Fatalf("NewURL() error = %v", err)
+	}
+	screen := newScreen([]request.Request{{URL: parsedURL}})
+	screen.focusedPanel = focusedPanelURL
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'X'}})
+
+	if got := screen.url.Value(); got != "aXbc/def" {
+		t.Fatalf("URL after a = %q, want %q", got, "aXbc/def")
+	}
+}
+
+func TestURLNavigationModeShiftAEntersTextInsertModeAtEndOfLine(t *testing.T) {
+	parsedURL, err := request.NewURL("abc/def")
+	if err != nil {
+		t.Fatalf("NewURL() error = %v", err)
+	}
+	screen := newScreen([]request.Request{{URL: parsedURL}})
+	screen.focusedPanel = focusedPanelURL
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'A'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'X'}})
+
+	if got := screen.url.Value(); got != "abc/defX" {
+		t.Fatalf("URL after A = %q, want %q", got, "abc/defX")
+	}
+}
+
+func TestURLEscTransitionsFromInsertToNavigateToPanel(t *testing.T) {
+	screen := newScreen([]request.Request{{}})
+	screen.focusedPanel = focusedPanelURL
+	screen = enterURLTextInsertMode(t, screen)
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEsc})
+	if screen.url.Mode() != urlPanelModeNavigate {
+		t.Fatalf("URL mode = %v, want navigate", screen.url.Mode())
+	}
+	if !screen.insertMode {
+		t.Fatal("insert mode is false, want true after returning to URL navigation")
+	}
+	if got := screen.url.CursorMode(); got != cursor.CursorStatic {
+		t.Fatalf("cursor mode after insert esc = %v, want static", got)
+	}
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEsc})
+	if screen.url.Mode() != urlPanelModePanel {
+		t.Fatalf("URL mode = %v, want panel", screen.url.Mode())
+	}
+	if screen.insertMode {
+		t.Fatal("insert mode is true, want false after returning to panel mode")
+	}
+	if got := screen.url.CursorMode(); got != cursor.CursorStatic {
+		t.Fatalf("cursor mode after navigation esc = %v, want static", got)
+	}
+}
+
+func TestURLCursorModeTracksInsertAndNavigationModes(t *testing.T) {
+	screen := newScreen([]request.Request{{}})
+	screen.focusedPanel = focusedPanelURL
+
+	if got := screen.url.CursorMode(); got != cursor.CursorStatic {
+		t.Fatalf("initial cursor mode = %v, want static", got)
+	}
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	if got := screen.url.CursorMode(); got != cursor.CursorStatic {
+		t.Fatalf("navigation cursor mode = %v, want static", got)
+	}
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	if got := screen.url.CursorMode(); got != cursor.CursorBlink {
+		t.Fatalf("insert cursor mode = %v, want blink", got)
+	}
+}
+
+func TestURLViewRendersBarCursorOnlyInTextInsertMode(t *testing.T) {
+	screen := newScreen([]request.Request{{}})
+	screen.focusedPanel = focusedPanelURL
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	view := screen.url.View(20, true)
+	if strings.Contains(view, "|") {
+		t.Fatalf("navigation URL view contains bar cursor: %q", view)
+	}
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	view = screen.url.View(20, true)
+	if !strings.Contains(view, "|") {
+		t.Fatalf("insert URL view does not contain bar cursor: %q", view)
+	}
+}
+
+func TestURLNavigationWordMotionsMoveCursor(t *testing.T) {
+	parsedURL, err := request.NewURL("one/two/three")
+	if err != nil {
+		t.Fatalf("NewURL() error = %v", err)
+	}
+
+	screen := newScreen([]request.Request{{URL: parsedURL}})
+	screen.focusedPanel = focusedPanelURL
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'w'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'X'}})
+	if got := screen.url.Value(); got != "one/Xtwo/three" {
+		t.Fatalf("URL after w = %q, want %q", got, "one/Xtwo/three")
+	}
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEsc})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'Y'}})
+	if got := screen.url.Value(); got != "one/XtwoY/three" {
+		t.Fatalf("URL after e = %q, want %q", got, "one/XtwoY/three")
+	}
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEsc})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'Z'}})
+	if got := screen.url.Value(); got != "one/ZXtwoY/three" {
+		t.Fatalf("URL after b = %q, want %q", got, "one/ZXtwoY/three")
+	}
+}
+
 func TestBodyEditorAutocompletesBraces(t *testing.T) {
 	screen := newScreen([]request.Request{{Body: ""}})
 	screen.focusedPanel = focusedPanelBody
@@ -254,6 +436,32 @@ func TestBodyNavigationModeIEntersTextInsertMode(t *testing.T) {
 	}
 }
 
+func TestBodyNavigationModeAEntersTextInsertModeAfterCurrentCharacter(t *testing.T) {
+	screen := newScreen([]request.Request{{Body: "abc\ndef"}})
+	screen.focusedPanel = focusedPanelBody
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'X'}})
+
+	if got := screen.requests[0].Body; got != "aXbc\ndef" {
+		t.Fatalf("request body after a = %q, want %q", got, "aXbc\ndef")
+	}
+}
+
+func TestBodyNavigationModeShiftAEntersTextInsertModeAtEndOfCurrentLine(t *testing.T) {
+	screen := newScreen([]request.Request{{Body: "abc\ndef"}})
+	screen.focusedPanel = focusedPanelBody
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'A'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'X'}})
+
+	if got := screen.requests[0].Body; got != "abcX\ndef" {
+		t.Fatalf("request body after A = %q, want %q", got, "abcX\ndef")
+	}
+}
+
 func TestBodyEditorFormatsJSONWhenLeavingTextInsertMode(t *testing.T) {
 	screen := newScreen([]request.Request{{Body: `{"a":[1,true]}`}})
 	screen.focusedPanel = focusedPanelBody
@@ -282,6 +490,9 @@ func TestBodyEscTransitionsFromInsertToNavigateToPanel(t *testing.T) {
 	if !screen.insertMode {
 		t.Fatal("insert mode is false, want true after returning to body navigation")
 	}
+	if got := screen.body.CursorMode(); got != cursor.CursorStatic {
+		t.Fatalf("cursor mode after insert esc = %v, want static", got)
+	}
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEsc})
 	if screen.body.Mode() != presentationbody.PanelMode {
@@ -289,6 +500,45 @@ func TestBodyEscTransitionsFromInsertToNavigateToPanel(t *testing.T) {
 	}
 	if screen.insertMode {
 		t.Fatal("insert mode is true, want false after returning to panel mode")
+	}
+	if got := screen.body.CursorMode(); got != cursor.CursorStatic {
+		t.Fatalf("cursor mode after navigation esc = %v, want static", got)
+	}
+}
+
+func TestBodyCursorModeTracksInsertAndNavigationModes(t *testing.T) {
+	screen := newScreen([]request.Request{{Body: ""}})
+	screen.focusedPanel = focusedPanelBody
+
+	if got := screen.body.CursorMode(); got != cursor.CursorStatic {
+		t.Fatalf("initial cursor mode = %v, want static", got)
+	}
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	if got := screen.body.CursorMode(); got != cursor.CursorStatic {
+		t.Fatalf("navigation cursor mode = %v, want static", got)
+	}
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	if got := screen.body.CursorMode(); got != cursor.CursorBlink {
+		t.Fatalf("insert cursor mode = %v, want blink", got)
+	}
+}
+
+func TestBodyViewRendersBarCursorOnlyInTextInsertMode(t *testing.T) {
+	screen := newScreen([]request.Request{{Body: ""}})
+	screen.focusedPanel = focusedPanelBody
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	view := screen.body.View(20, 3, true)
+	if strings.Contains(view, "|") {
+		t.Fatalf("navigation body view contains bar cursor: %q", view)
+	}
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	view = screen.body.View(20, 3, true)
+	if !strings.Contains(view, "|") {
+		t.Fatalf("insert body view does not contain bar cursor: %q", view)
 	}
 }
 
@@ -431,6 +681,68 @@ func TestCommandPanelWriteCommandSavesRequest(t *testing.T) {
 	}
 }
 
+func TestNewRequestFlowCreatesFileSelectsRequestAndEditsURL(t *testing.T) {
+	writer := &fakeWriter{}
+	dir := t.TempDir()
+	screen := NewScreenWithDirectory(nil, dir, writer, nil)
+	screen.focusedPanel = focusedPanelRequests
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	if !screen.newRequestPanel.Open {
+		t.Fatal("new request panel is closed, want open")
+	}
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Books")})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEnter})
+
+	if screen.newRequestPanel.Open {
+		t.Fatal("new request panel is open, want closed")
+	}
+	if got := writer.calls; got != 1 {
+		t.Fatalf("write calls = %d, want 1", got)
+	}
+	if got := writer.request.Name; got != "Books.curl" {
+		t.Fatalf("written request name = %q, want Books.curl", got)
+	}
+	if got := writer.request.Path; got != filepath.Join(dir, "Books.curl") {
+		t.Fatalf("written request path = %q, want %q", got, filepath.Join(dir, "Books.curl"))
+	}
+	if len(screen.requests) != 1 {
+		t.Fatalf("requests len = %d, want 1", len(screen.requests))
+	}
+	if screen.selectedRequestIndex != 0 {
+		t.Fatalf("selected request index = %d, want 0", screen.selectedRequestIndex)
+	}
+	if screen.focusedPanel != focusedPanelURL {
+		t.Fatalf("focused panel = %v, want URL", screen.focusedPanel)
+	}
+	if !screen.insertMode {
+		t.Fatal("insert mode is false, want true")
+	}
+}
+
+func TestNewRequestFlowEscCancelsCreation(t *testing.T) {
+	writer := &fakeWriter{}
+	screen := NewScreenWithDirectory(nil, t.TempDir(), writer, nil)
+	screen.focusedPanel = focusedPanelRequests
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Books")})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEsc})
+
+	if screen.newRequestPanel.Open {
+		t.Fatal("new request panel is open, want closed")
+	}
+	if got := writer.calls; got != 0 {
+		t.Fatalf("write calls = %d, want 0", got)
+	}
+	if len(screen.requests) != 0 {
+		t.Fatalf("requests len = %d, want 0", len(screen.requests))
+	}
+	if screen.focusedPanel != focusedPanelRequests {
+		t.Fatalf("focused panel = %v, want requests", screen.focusedPanel)
+	}
+}
+
 type fakeWriter struct {
 	request request.Request
 	calls   int
@@ -455,7 +767,7 @@ func (d *fakeDoer) Do(req request.Request) (request.Response, error) {
 	return d.response, d.err
 }
 
-func TestDoButtonRunsSelectedRequest(t *testing.T) {
+func TestCommandPanelRunCommandRunsSelectedRequest(t *testing.T) {
 	parsedURL, err := request.NewURL("http://localhost/books")
 	if err != nil {
 		t.Fatalf("NewURL() error = %v", err)
@@ -481,9 +793,10 @@ func TestDoButtonRunsSelectedRequest(t *testing.T) {
 		},
 	}
 	screen := NewScreen([]request.Request{{Name: "req.curl", URL: parsedURL}}, nil, doer)
-	screen.focusedPanel = focusedPanelDoButton
 
-	updated, cmd := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	updated, _ = updateScreen(t, updated, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	updated, cmd := updateScreen(t, updated, tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("do command is nil")
 	}
@@ -491,9 +804,9 @@ func TestDoButtonRunsSelectedRequest(t *testing.T) {
 		t.Fatal("request in flight is false, want true")
 	}
 
-	updated, _ = updateScreen(t, updated, cmd())
+	updated, _ = updateScreen(t, updated, firstCommandMessage(t, cmd))
 	if got := doer.calls; got != 1 {
-		t.Fatalf("do calls after enter = %d, want 1", got)
+		t.Fatalf("do calls after :r = %d, want 1", got)
 	}
 	if got := doer.request.Name; got != "req.curl" {
 		t.Fatalf("request name = %q, want %q", got, "req.curl")
@@ -509,28 +822,45 @@ func TestDoButtonRunsSelectedRequest(t *testing.T) {
 	}
 }
 
-func TestDoButtonRendersAsInputPanel(t *testing.T) {
+func TestStatusPanelRendersAsInputPanel(t *testing.T) {
 	screen := newScreen([]request.Request{{Name: "req.curl"}})
 	screen.focusedPanel = focusedPanelDoButton
 
 	panel := screen.renderDoButton()
-	if !strings.Contains(panel, "Do Req") {
-		t.Fatal("panel does not contain Do Req title")
+	if !strings.Contains(panel, "Status") {
+		t.Fatal("panel does not contain Status title")
 	}
-	if !strings.Contains(panel, "Do") {
-		t.Fatal("panel does not contain Do label")
+	if !strings.Contains(panel, "Ready") {
+		t.Fatal("panel does not contain Ready status")
 	}
 	if !strings.Contains(panel, "╭") || !strings.Contains(panel, "─") {
 		t.Fatalf("panel does not look like a panel: %q", panel)
 	}
 }
 
-func TestDoButtonEnterShowsLoadingState(t *testing.T) {
+func TestStatusPanelRendersDoingStateWithSpinner(t *testing.T) {
+	screen := newScreen([]request.Request{{Name: "req.curl"}})
+	screen.requestInFlight = true
+
+	panel := screen.renderDoButton()
+	if !strings.Contains(panel, "Status") {
+		t.Fatal("panel does not contain Status title")
+	}
+	if !strings.Contains(panel, "Doing...") {
+		t.Fatal("panel does not contain Doing status")
+	}
+	if spinnerView := screen.statusSpinner.View(); spinnerView == "" || !strings.Contains(panel, spinnerView) {
+		t.Fatalf("panel does not contain spinner %q: %q", spinnerView, panel)
+	}
+}
+
+func TestCommandPanelRunCommandShowsLoadingState(t *testing.T) {
 	doer := &fakeDoer{response: request.Response{Status: "200 OK"}}
 	screen := NewScreen([]request.Request{{Name: "req.curl"}}, nil, doer)
-	screen.focusedPanel = focusedPanelDoButton
 
-	updated, cmd := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	updated, _ = updateScreen(t, updated, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	updated, cmd := updateScreen(t, updated, tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("do command is nil")
 	}
@@ -541,12 +871,42 @@ func TestDoButtonEnterShowsLoadingState(t *testing.T) {
 		t.Fatalf("response view = %q, want executing state", got)
 	}
 
-	updated, _ = updateScreen(t, updated, cmd())
+	updated, _ = updateScreen(t, updated, firstCommandMessage(t, cmd))
 	if updated.requestInFlight {
 		t.Fatal("request in flight is true, want false")
 	}
 	if got := updated.renderResponse(); !strings.Contains(got, "Status: 200 OK") {
 		t.Fatalf("response view = %q, want status", got)
+	}
+}
+
+func TestDoButtonDoesNotEnterInsertMode(t *testing.T) {
+	screen := newScreen([]request.Request{{Name: "req.curl"}})
+	screen.focusedPanel = focusedPanelDoButton
+
+	updated, cmd := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	if cmd != nil {
+		t.Fatalf("command after i on do panel = %p, want nil", cmd)
+	}
+	if updated.insertMode {
+		t.Fatal("insert mode is true, want false")
+	}
+}
+
+func TestDoButtonEnterDoesNotRunRequest(t *testing.T) {
+	doer := &fakeDoer{response: request.Response{Status: "200 OK"}}
+	screen := NewScreen([]request.Request{{Name: "req.curl"}}, nil, doer)
+	screen.focusedPanel = focusedPanelDoButton
+
+	updated, cmd := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		t.Fatalf("command after enter on do panel = %p, want nil", cmd)
+	}
+	if updated.requestInFlight {
+		t.Fatal("request in flight is true, want false")
+	}
+	if got := doer.calls; got != 0 {
+		t.Fatalf("do calls = %d, want 0", got)
 	}
 }
 
@@ -603,6 +963,13 @@ func enterBodyTextInsertMode(t *testing.T, screen Screen) Screen {
 	return screen
 }
 
+func enterURLTextInsertMode(t *testing.T, screen Screen) Screen {
+	t.Helper()
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	return screen
+}
+
 func newScreen(requests []request.Request) Screen {
 	return NewScreen(requests, nil, nil)
 }
@@ -615,4 +982,17 @@ func updateScreen(t *testing.T, screen Screen, msg tea.Msg) (Screen, tea.Cmd) {
 		t.Fatalf("updated model has type %T, want Screen", model)
 	}
 	return updated, cmd
+}
+
+func firstCommandMessage(t *testing.T, cmd tea.Cmd) tea.Msg {
+	t.Helper()
+	msg := cmd()
+	batch, ok := msg.(tea.BatchMsg)
+	if !ok {
+		return msg
+	}
+	if len(batch) == 0 {
+		t.Fatal("batch command is empty")
+	}
+	return batch[0]()
 }
