@@ -21,16 +21,23 @@ const (
 type Panel struct {
 	Open  bool
 	Input string
+	Title string
 }
 
 func (p *Panel) Activate(input string) {
+	p.ActivateWithTitle("Command", input)
+}
+
+func (p *Panel) ActivateWithTitle(title string, input string) {
 	p.Open = true
 	p.Input = input
+	p.Title = title
 }
 
 func (p *Panel) Close() {
 	p.Open = false
 	p.Input = ""
+	p.Title = ""
 }
 
 func (p *Panel) HandleKey(msg tea.KeyMsg) Action {
@@ -69,9 +76,13 @@ func (p Panel) Render(baseView string, screenWidth int) string {
 	}
 
 	panelWidth := min(50, max(20, screenWidth/2))
+	title := p.Title
+	if title == "" {
+		title = "Command"
+	}
 	panel := renderPanelWithTitle(
 		commandPanelStyle.Width(panelWidth),
-		"Command",
+		title,
 		textWithCursor(p.Input, true),
 	)
 	panelLines := strings.Split(panel, "\n")
