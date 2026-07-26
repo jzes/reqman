@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/jzes/reqman/internal/domain/request"
@@ -101,9 +100,13 @@ func sortedHeaderKeys(headers map[string]string) []string {
 func quoteArgs(args []string) []string {
 	quoted := make([]string, len(args))
 	for i, arg := range args {
-		quoted[i] = strconv.Quote(arg)
+		quoted[i] = shellQuote(arg)
 	}
 	return quoted
+}
+
+func shellQuote(arg string) string {
+	return "'" + strings.ReplaceAll(arg, "'", "'\\''") + "'"
 }
 
 func readItem(dir string, entry os.DirEntry) (Item, error) {

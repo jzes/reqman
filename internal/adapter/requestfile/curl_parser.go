@@ -58,16 +58,14 @@ func requestFromArgs(args []string) (request.Request, error) {
 		i = next
 	}
 
-	if state.rawURL == "" {
-		return request.Request{}, fmt.Errorf("missing request URL")
-	}
+	if state.rawURL != "" {
+		parsedURL, err := request.NewURL(state.rawURL)
+		if err != nil {
+			return request.Request{}, err
+		}
 
-	parsedURL, err := request.NewURL(state.rawURL)
-	if err != nil {
-		return request.Request{}, err
+		parsed.URL = parsedURL
 	}
-
-	parsed.URL = parsedURL
 	if parsed.Body != "" && parsed.Method == request.MethodGet {
 		parsed.Method = request.MethodPost
 	}

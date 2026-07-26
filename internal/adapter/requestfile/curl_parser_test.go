@@ -161,10 +161,16 @@ func TestParseCurlRequestPreservesEscapedNewlinesInsideJSONString(t *testing.T) 
 	}
 }
 
-func TestParseCurlRequestRequiresURL(t *testing.T) {
-	_, err := parseCurlRequest("req.curl", "req.curl", []byte(`curl -H 'Accept: application/json'`))
-	if err == nil {
-		t.Fatal("parseCurlRequest() error = nil, want error")
+func TestParseCurlRequestAllowsEmptyURL(t *testing.T) {
+	parsed, err := parseCurlRequest("req.curl", "req.curl", []byte(`curl -H 'Accept: application/json'`))
+	if err != nil {
+		t.Fatalf("parseCurlRequest() error = %v", err)
+	}
+	if got := parsed.URL.String(); got != "" {
+		t.Fatalf("URL = %q, want empty", got)
+	}
+	if got := parsed.Headers["Accept"]; got != "application/json" {
+		t.Fatalf("Accept header = %q, want application/json", got)
 	}
 }
 
