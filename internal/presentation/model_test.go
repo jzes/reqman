@@ -310,6 +310,25 @@ func TestURLViewRendersBarCursorOnlyInTextInsertMode(t *testing.T) {
 	}
 }
 
+func TestURLViewEmptyInsertModeDoesNotLeakANSISequence(t *testing.T) {
+	screen := newScreen([]request.Request{{}})
+	screen.focusedPanel = focusedPanelURL
+	screen = enterURLTextInsertMode(t, screen)
+
+	view := screen.url.View(20, true)
+	if strings.Contains(view, "|[38;5;240m") {
+		t.Fatalf("empty insert URL view leaks ANSI sequence: %q", view)
+	}
+}
+
+func TestReplaceAtURLColumnSkipsANSISequences(t *testing.T) {
+	line := "\x1b[38;5;240mhttp://localhost\x1b[0m"
+	want := "\x1b[38;5;240m|ttp://localhost\x1b[0m"
+	if got := replaceAtURLColumn(line, 0, "|"); got != want {
+		t.Fatalf("replaceAtURLColumn() = %q, want %q", got, want)
+	}
+}
+
 func TestURLNavigationWordMotionsMoveCursor(t *testing.T) {
 	parsedURL, err := request.NewURL("one/two/three")
 	if err != nil {

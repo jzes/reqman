@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 type urlPanelMode int
@@ -184,6 +185,11 @@ func replaceAtURLColumn(line string, column int, value string) string {
 	}
 
 	for i, visibleColumn := 0, 0; i < len(line); {
+		if line[i] == '\x1b' {
+			i = skipANSISequence(line, i)
+			continue
+		}
+
 		r, size := utf8.DecodeRuneInString(line[i:])
 		if r == utf8.RuneError && size == 0 {
 			break
@@ -191,11 +197,29 @@ func replaceAtURLColumn(line string, column int, value string) string {
 		if visibleColumn >= column {
 			return line[:i] + value + line[i+size:]
 		}
-		visibleColumn++
+		visibleColumn += ansi.StringWidth(string(r))
 		i += size
 	}
 
 	return line + value
+}
+
+func skipANSISequence(line string, start int) int {
+	if start+1 < len(line) && line[start+1] == '[' {
+		for i := start + 2; i < len(line); i++ {
+			if line[i] >= '@' && line[i] <= '~' {
+				return i + 1
+			}
+		}
+		return len(line)
+	}
+
+	for i := start + 1; i < len(line); i++ {
+		if line[i] >= '@' && line[i] <= '~' {
+			return i + 1
+		}
+	}
+	return len(line)
 }
 
 func (p *urlPanel) moveCursor(delta int) {
