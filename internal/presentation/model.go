@@ -2,7 +2,6 @@
 package presentation
 
 import (
-	"path/filepath"
 	"regexp"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -82,7 +81,6 @@ type Screen struct {
 	width                int
 	height               int
 	requestWriter        presentationrequest.RequestWriter
-	requestDirectory     string
 	requestDoer          presentationrequest.RequestDoer
 	statusSpinner        spinner.Model
 	commandPanel         presentationcommandpanel.Panel
@@ -94,24 +92,15 @@ type Screen struct {
 }
 
 func NewScreen(requests []request.Request, rw presentationrequest.RequestWriter, rd presentationrequest.RequestDoer) Screen {
-	return NewScreenWithDirectory(requests, inferRequestDirectory(requests), rw, rd)
-}
-
-func NewScreenWithDirectory(requests []request.Request, requestDirectory string, rw presentationrequest.RequestWriter, rd presentationrequest.RequestDoer) Screen {
-	if requestDirectory == "" {
-		requestDirectory = "."
-	}
-
 	screen := Screen{
-		requests:         requests,
-		headersEditor:    newHeadersEditor(),
-		url:              newURLPanel(),
-		body:             presentationbody.NewPanel(),
-		methodList:       newMethodList(),
-		statusSpinner:    spinner.New(spinner.WithSpinner(spinner.Line)),
-		requestWriter:    rw,
-		requestDirectory: requestDirectory,
-		requestDoer:      rd,
+		requests:      requests,
+		headersEditor: newHeadersEditor(),
+		url:           newURLPanel(),
+		body:          presentationbody.NewPanel(),
+		methodList:    newMethodList(),
+		statusSpinner: spinner.New(spinner.WithSpinner(spinner.Line)),
+		requestWriter: rw,
+		requestDoer:   rd,
 	}
 
 	screen.showSelectedRequestURL()
@@ -119,15 +108,6 @@ func NewScreenWithDirectory(requests []request.Request, requestDirectory string,
 	screen.showSelectedRequestBody()
 	screen.showSelectedRequestMethod()
 	return screen
-}
-
-func inferRequestDirectory(requests []request.Request) string {
-	for _, req := range requests {
-		if req.Path != "" {
-			return filepath.Dir(req.Path)
-		}
-	}
-	return "."
 }
 
 func (m Screen) Init() tea.Cmd {

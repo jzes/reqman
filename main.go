@@ -23,8 +23,9 @@ func main() {
 	fileSource := requestfile.NewFileSource(parsers)
 	httpClient := requesthttp.NewClient()
 	loader := application.NewRequestLoader(fileSource)
-	writer := application.NewRequestWriter(fileSource)
+	writer := application.NewRequestWriter(fileSource, requestsDir)
 	doer := application.NewRequestDoer(httpClient)
+
 	requests, err := loader.LoadFromDirectory(requestsDir)
 	if err != nil {
 		log.Printf("Error loading requests from %q: %v", requestsDir, err)

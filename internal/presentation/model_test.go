@@ -1,7 +1,6 @@
 package presentation
 
 import (
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -683,8 +682,7 @@ func TestCommandPanelWriteCommandSavesRequest(t *testing.T) {
 
 func TestNewRequestFlowCreatesFileSelectsRequestAndEditsURL(t *testing.T) {
 	writer := &fakeWriter{}
-	dir := t.TempDir()
-	screen := NewScreenWithDirectory(nil, dir, writer, nil)
+	screen := NewScreen(nil, writer, nil)
 	screen.focusedPanel = focusedPanelRequests
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
@@ -703,8 +701,8 @@ func TestNewRequestFlowCreatesFileSelectsRequestAndEditsURL(t *testing.T) {
 	if got := writer.request.Name; got != "Books.curl" {
 		t.Fatalf("written request name = %q, want Books.curl", got)
 	}
-	if got := writer.request.Path; got != filepath.Join(dir, "Books.curl") {
-		t.Fatalf("written request path = %q, want %q", got, filepath.Join(dir, "Books.curl"))
+	if got := writer.request.Path; got != "" {
+		t.Fatalf("written request path = %q, want empty", got)
 	}
 	if len(screen.requests) != 1 {
 		t.Fatalf("requests len = %d, want 1", len(screen.requests))
@@ -722,7 +720,7 @@ func TestNewRequestFlowCreatesFileSelectsRequestAndEditsURL(t *testing.T) {
 
 func TestNewRequestFlowEscCancelsCreation(t *testing.T) {
 	writer := &fakeWriter{}
-	screen := NewScreenWithDirectory(nil, t.TempDir(), writer, nil)
+	screen := NewScreen(nil, writer, nil)
 	screen.focusedPanel = focusedPanelRequests
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})

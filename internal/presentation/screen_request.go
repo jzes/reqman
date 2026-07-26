@@ -44,7 +44,6 @@ func (scr *Screen) createRequest(name string) {
 
 	newRequest := request.Request{
 		Name:    name,
-		Path:    filepath.Join(scr.requestDirectory, name),
 		Method:  request.MethodGet,
 		Headers: make(map[string]string),
 	}

@@ -1,6 +1,7 @@
 package application
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/jzes/reqman/internal/domain/request"
@@ -22,7 +23,7 @@ func TestRequestWriterUsesWriter(t *testing.T) {
 	}
 
 	writer := &fakeWriter{}
-	usecase := NewRequestWriter(writer)
+	usecase := NewRequestWriter(writer, t.TempDir())
 	input := request.Request{
 		Name:   "req.curl",
 		Path:   "req.curl",
@@ -39,5 +40,20 @@ func TestRequestWriterUsesWriter(t *testing.T) {
 	}
 	if writer.request.URL.String() != "http://localhost/books" {
 		t.Fatalf("URL = %q, want %q", writer.request.URL.String(), "http://localhost/books")
+	}
+}
+
+func TestRequestWriterSetsPathFromDirectoryWhenRequestHasNoPath(t *testing.T) {
+	writer := &fakeWriter{}
+	dir := t.TempDir()
+	usecase := NewRequestWriter(writer, dir)
+
+	if err := usecase.WriteToFile(request.Request{Name: "req.curl"}); err != nil {
+		t.Fatalf("WriteToFile() error = %v", err)
+	}
+
+	want := filepath.Join(dir, "req.curl")
+	if writer.request.Path != want {
+		t.Fatalf("Path = %q, want %q", writer.request.Path, want)
 	}
 }
