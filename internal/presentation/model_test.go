@@ -8,12 +8,12 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/jzes/reqman/internal/application"
 	"github.com/jzes/reqman/internal/domain/request"
+	presentationbody "github.com/jzes/reqman/internal/presentation/body"
 )
 
 func TestViewRendersBodyAndResponsePanels(t *testing.T) {
-	screen := NewScreen([]request.Request{{Name: "req.curl", Body: "{}"}})
+	screen := newScreen([]request.Request{{Name: "req.curl", Body: "{}"}})
 	screen.width = 100
 	screen.height = 30
 
@@ -27,7 +27,7 @@ func TestViewRendersBodyAndResponsePanels(t *testing.T) {
 }
 
 func TestResponsePanelVerticalNavigation(t *testing.T) {
-	screen := NewScreen([]request.Request{{Name: "req.curl"}})
+	screen := newScreen([]request.Request{{Name: "req.curl"}})
 	screen.focusedPanel = focusedPanelHeaders
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
@@ -52,7 +52,7 @@ func TestResponsePanelVerticalNavigation(t *testing.T) {
 }
 
 func TestResponsePanelLeftNavigationFocusesRequests(t *testing.T) {
-	screen := NewScreen([]request.Request{{Name: "req.curl"}})
+	screen := newScreen([]request.Request{{Name: "req.curl"}})
 	screen.focusedPanel = focusedPanelResponse
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
@@ -76,7 +76,7 @@ func TestHeadersFromMapSortsRows(t *testing.T) {
 }
 
 func TestHeadersEditorCreatesFirstHeader(t *testing.T) {
-	screen := NewScreen([]request.Request{{Headers: map[string]string{}}})
+	screen := newScreen([]request.Request{{Headers: map[string]string{}}})
 	screen.focusedPanel = focusedPanelHeaders
 
 	screen = enterHeaderInsertMode(t, screen)
@@ -90,7 +90,7 @@ func TestHeadersEditorCreatesFirstHeader(t *testing.T) {
 }
 
 func TestHeadersEditorEditsKeyAndValue(t *testing.T) {
-	screen := NewScreen([]request.Request{{Headers: map[string]string{"Accept": "text/plain"}}})
+	screen := newScreen([]request.Request{{Headers: map[string]string{"Accept": "text/plain"}}})
 	screen.focusedPanel = focusedPanelHeaders
 
 	screen = enterHeaderInsertMode(t, screen)
@@ -113,7 +113,7 @@ func TestHeadersEditorEditsKeyAndValue(t *testing.T) {
 }
 
 func TestHeadersEditorDeletesSelectedRow(t *testing.T) {
-	screen := NewScreen([]request.Request{{Headers: map[string]string{
+	screen := newScreen([]request.Request{{Headers: map[string]string{
 		"Accept":        "application/json",
 		"Authorization": "Bearer token",
 	}}})
@@ -131,7 +131,7 @@ func TestHeadersEditorDeletesSelectedRow(t *testing.T) {
 }
 
 func TestSyncHeadersSkipsEmptyKeysAndLastDuplicateWins(t *testing.T) {
-	screen := NewScreen([]request.Request{{Headers: map[string]string{}}})
+	screen := newScreen([]request.Request{{Headers: map[string]string{}}})
 	screen.headersEditor.rows = []headerRow{
 		{key: "", value: "ignored"},
 		{key: "Accept", value: "text/plain"},
@@ -149,13 +149,13 @@ func TestSyncHeadersSkipsEmptyKeysAndLastDuplicateWins(t *testing.T) {
 }
 
 func TestBodyEditorSyncsBodyToSelectedRequest(t *testing.T) {
-	screen := NewScreen([]request.Request{{Body: ""}})
+	screen := newScreen([]request.Request{{Body: ""}})
 	screen.focusedPanel = focusedPanelBody
 
 	screen = enterBodyTextInsertMode(t, screen)
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("abc")})
 
-	if got := screen.bodyTextArea.Value(); got != "abc" {
+	if got := screen.body.Value(); got != "abc" {
 		t.Fatalf("body textarea = %q, want abc", got)
 	}
 	if got := screen.requests[0].Body; got != "abc" {
@@ -164,7 +164,7 @@ func TestBodyEditorSyncsBodyToSelectedRequest(t *testing.T) {
 }
 
 func TestBodyEditorAutocompletesBraces(t *testing.T) {
-	screen := NewScreen([]request.Request{{Body: ""}})
+	screen := newScreen([]request.Request{{Body: ""}})
 	screen.focusedPanel = focusedPanelBody
 
 	screen = enterBodyTextInsertMode(t, screen)
@@ -177,7 +177,7 @@ func TestBodyEditorAutocompletesBraces(t *testing.T) {
 }
 
 func TestBodyEditorAutocompletesBrackets(t *testing.T) {
-	screen := NewScreen([]request.Request{{Body: ""}})
+	screen := newScreen([]request.Request{{Body: ""}})
 	screen.focusedPanel = focusedPanelBody
 
 	screen = enterBodyTextInsertMode(t, screen)
@@ -190,14 +190,14 @@ func TestBodyEditorAutocompletesBrackets(t *testing.T) {
 }
 
 func TestBodyEditorFormatsJSON(t *testing.T) {
-	screen := NewScreen([]request.Request{{Body: `{"a":[1,true]}`}})
+	screen := newScreen([]request.Request{{Body: `{"a":[1,true]}`}})
 	screen.focusedPanel = focusedPanelBody
 
 	screen = enterBodyTextInsertMode(t, screen)
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyCtrlF})
 
 	want := "{\n  \"a\": [\n    1,\n    true\n  ]\n}"
-	if got := screen.bodyTextArea.Value(); got != want {
+	if got := screen.body.Value(); got != want {
 		t.Fatalf("body textarea = %q, want %q", got, want)
 	}
 	if got := screen.requests[0].Body; got != want {
@@ -207,13 +207,13 @@ func TestBodyEditorFormatsJSON(t *testing.T) {
 
 func TestBodyEditorFormatInvalidJSONDoesNotChangeBody(t *testing.T) {
 	body := `{"bad":`
-	screen := NewScreen([]request.Request{{Body: body}})
+	screen := newScreen([]request.Request{{Body: body}})
 	screen.focusedPanel = focusedPanelBody
 
 	screen = enterBodyTextInsertMode(t, screen)
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyCtrlF})
 
-	if got := screen.bodyTextArea.Value(); got != body {
+	if got := screen.body.Value(); got != body {
 		t.Fatalf("body textarea = %q, want %q", got, body)
 	}
 	if got := screen.requests[0].Body; got != body {
@@ -222,15 +222,15 @@ func TestBodyEditorFormatInvalidJSONDoesNotChangeBody(t *testing.T) {
 }
 
 func TestBodyNormalModeIEntersNavigationMode(t *testing.T) {
-	screen := NewScreen([]request.Request{{Body: ""}})
+	screen := newScreen([]request.Request{{Body: ""}})
 	screen.focusedPanel = focusedPanelBody
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
 	if !screen.insertMode {
 		t.Fatal("insert mode is false, want true")
 	}
-	if screen.bodyMode != bodyModeNavigate {
-		t.Fatalf("body mode = %v, want navigate", screen.bodyMode)
+	if screen.body.Mode() != presentationbody.NavigateMode {
+		t.Fatalf("body mode = %v, want navigate", screen.body.Mode())
 	}
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
@@ -240,12 +240,12 @@ func TestBodyNormalModeIEntersNavigationMode(t *testing.T) {
 }
 
 func TestBodyNavigationModeIEntersTextInsertMode(t *testing.T) {
-	screen := NewScreen([]request.Request{{Body: ""}})
+	screen := newScreen([]request.Request{{Body: ""}})
 	screen.focusedPanel = focusedPanelBody
 
 	screen = enterBodyTextInsertMode(t, screen)
-	if screen.bodyMode != bodyModeInsert {
-		t.Fatalf("body mode = %v, want insert", screen.bodyMode)
+	if screen.body.Mode() != presentationbody.InsertMode {
+		t.Fatalf("body mode = %v, want insert", screen.body.Mode())
 	}
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
@@ -255,14 +255,14 @@ func TestBodyNavigationModeIEntersTextInsertMode(t *testing.T) {
 }
 
 func TestBodyEditorFormatsJSONWhenLeavingTextInsertMode(t *testing.T) {
-	screen := NewScreen([]request.Request{{Body: `{"a":[1,true]}`}})
+	screen := newScreen([]request.Request{{Body: `{"a":[1,true]}`}})
 	screen.focusedPanel = focusedPanelBody
 
 	screen = enterBodyTextInsertMode(t, screen)
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEsc})
 
 	want := "{\n  \"a\": [\n    1,\n    true\n  ]\n}"
-	if got := screen.bodyTextArea.Value(); got != want {
+	if got := screen.body.Value(); got != want {
 		t.Fatalf("body textarea = %q, want %q", got, want)
 	}
 	if got := screen.requests[0].Body; got != want {
@@ -271,21 +271,21 @@ func TestBodyEditorFormatsJSONWhenLeavingTextInsertMode(t *testing.T) {
 }
 
 func TestBodyEscTransitionsFromInsertToNavigateToPanel(t *testing.T) {
-	screen := NewScreen([]request.Request{{Body: ""}})
+	screen := newScreen([]request.Request{{Body: ""}})
 	screen.focusedPanel = focusedPanelBody
 	screen = enterBodyTextInsertMode(t, screen)
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEsc})
-	if screen.bodyMode != bodyModeNavigate {
-		t.Fatalf("body mode = %v, want navigate", screen.bodyMode)
+	if screen.body.Mode() != presentationbody.NavigateMode {
+		t.Fatalf("body mode = %v, want navigate", screen.body.Mode())
 	}
 	if !screen.insertMode {
 		t.Fatal("insert mode is false, want true after returning to body navigation")
 	}
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEsc})
-	if screen.bodyMode != bodyModePanel {
-		t.Fatalf("body mode = %v, want panel", screen.bodyMode)
+	if screen.body.Mode() != presentationbody.PanelMode {
+		t.Fatalf("body mode = %v, want panel", screen.body.Mode())
 	}
 	if screen.insertMode {
 		t.Fatal("insert mode is true, want false after returning to panel mode")
@@ -294,7 +294,7 @@ func TestBodyEscTransitionsFromInsertToNavigateToPanel(t *testing.T) {
 
 func TestBodyNavigationModeMotionsStayInBodyPanel(t *testing.T) {
 	body := "one\ntwo\nthree"
-	screen := NewScreen([]request.Request{{Body: body}})
+	screen := newScreen([]request.Request{{Body: body}})
 	screen.focusedPanel = focusedPanelBody
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
@@ -311,7 +311,7 @@ func TestBodyNavigationModeMotionsStayInBodyPanel(t *testing.T) {
 
 func TestBodyNormalModePanelMotionsAreNotCapturedByText(t *testing.T) {
 	body := "one\ntwo\nthree"
-	screen := NewScreen([]request.Request{{Body: body}})
+	screen := newScreen([]request.Request{{Body: body}})
 	screen.focusedPanel = focusedPanelBody
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
@@ -324,7 +324,7 @@ func TestBodyNormalModePanelMotionsAreNotCapturedByText(t *testing.T) {
 		t.Fatalf("focused panel = %v, want body", screen.focusedPanel)
 	}
 
-	if got := screen.bodyTextArea.Value(); got != body {
+	if got := screen.body.Value(); got != body {
 		t.Fatalf("body textarea = %q, want %q", got, body)
 	}
 	if got := screen.requests[0].Body; got != body {
@@ -333,7 +333,7 @@ func TestBodyNormalModePanelMotionsAreNotCapturedByText(t *testing.T) {
 }
 
 func TestBodyNavigationWordMotionsMoveCursor(t *testing.T) {
-	screen := NewScreen([]request.Request{{Body: "one two three"}})
+	screen := newScreen([]request.Request{{Body: "one two three"}})
 	screen.focusedPanel = focusedPanelBody
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
@@ -362,14 +362,14 @@ func TestBodyNavigationWordMotionsMoveCursor(t *testing.T) {
 }
 
 func TestBodyNavigationModeExitFormatsJSONWithJQ(t *testing.T) {
-	screen := NewScreen([]request.Request{{Body: `{"a":[1,true]}`}})
+	screen := newScreen([]request.Request{{Body: `{"a":[1,true]}`}})
 	screen.focusedPanel = focusedPanelBody
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEsc})
 
 	want := "{\n  \"a\": [\n    1,\n    true\n  ]\n}"
-	if got := screen.bodyTextArea.Value(); got != want {
+	if got := screen.body.Value(); got != want {
 		t.Fatalf("body textarea = %q, want %q", got, want)
 	}
 	if got := screen.requests[0].Body; got != want {
@@ -384,10 +384,10 @@ func TestEscDoesNotSaveRequest(t *testing.T) {
 	}
 
 	writer := &fakeWriter{}
-	screen := NewScreen([]request.Request{{URL: parsedURL}}, application.NewRequestWriter(writer))
+	screen := NewScreen([]request.Request{{URL: parsedURL}}, writer, nil)
 	screen.focusedPanel = focusedPanelBody
 	screen = enterBodyTextInsertMode(t, screen)
-	if got := screen.bodyTextArea.Value(); got != "" {
+	if got := screen.body.Value(); got != "" {
 		t.Fatalf("body textarea = %q, want empty", got)
 	}
 
@@ -395,8 +395,8 @@ func TestEscDoesNotSaveRequest(t *testing.T) {
 	if got := writer.calls; got != 0 {
 		t.Fatalf("write calls = %d, want 0", got)
 	}
-	if screen.bodyMode != bodyModeNavigate {
-		t.Fatalf("body mode = %v, want navigate", screen.bodyMode)
+	if screen.body.Mode() != presentationbody.NavigateMode {
+		t.Fatalf("body mode = %v, want navigate", screen.body.Mode())
 	}
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEsc})
@@ -412,7 +412,7 @@ func TestCommandPanelWriteCommandSavesRequest(t *testing.T) {
 	}
 
 	writer := &fakeWriter{}
-	screen := NewScreen([]request.Request{{Name: "req.curl", Path: "req.curl", URL: parsedURL}}, application.NewRequestWriter(writer))
+	screen := NewScreen([]request.Request{{Name: "req.curl", Path: "req.curl", URL: parsedURL}}, writer, nil)
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'w'}})
@@ -426,7 +426,7 @@ func TestCommandPanelWriteCommandSavesRequest(t *testing.T) {
 	if got := writer.request.Name; got != "req.curl" {
 		t.Fatalf("written request name = %q, want req.curl", got)
 	}
-	if screen.commandPanelOpen {
+	if screen.commandPanel.Open {
 		t.Fatal("command panel is open, want closed")
 	}
 }
@@ -436,7 +436,7 @@ type fakeWriter struct {
 	calls   int
 }
 
-func (w *fakeWriter) Write(req request.Request) error {
+func (w *fakeWriter) WriteToFile(req request.Request) error {
 	w.request = req
 	w.calls++
 	return nil
@@ -466,15 +466,21 @@ func TestDoButtonRunsSelectedRequest(t *testing.T) {
 		t.Fatalf("NewURL() error = %v", err)
 	}
 
-	doer := &fakeDoer{response: request.Response{
-		URL:        responseURL,
-		Status:     "200 OK",
-		StatusCode: 200,
-		Headers:    map[string][]string{"Content-Type": []string{"application/json"}},
-		Body:       `{"ok":true}`,
-		Duration:   12 * time.Millisecond,
-	}}
-	screen := NewScreen([]request.Request{{Name: "req.curl", URL: parsedURL}}, application.NewRequestDoer(doer))
+	doer := &fakeDoer{
+		response: request.Response{
+			URL:        responseURL,
+			Status:     "200 OK",
+			StatusCode: 200,
+			Headers: map[string][]string{
+				"Content-Type": {
+					"application/json",
+				},
+			},
+			Body:     `{"ok":true}`,
+			Duration: 12 * time.Millisecond,
+		},
+	}
+	screen := NewScreen([]request.Request{{Name: "req.curl", URL: parsedURL}}, nil, doer)
 	screen.focusedPanel = focusedPanelDoButton
 
 	updated, cmd := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEnter})
@@ -504,7 +510,7 @@ func TestDoButtonRunsSelectedRequest(t *testing.T) {
 }
 
 func TestDoButtonRendersAsInputPanel(t *testing.T) {
-	screen := NewScreen([]request.Request{{Name: "req.curl"}})
+	screen := newScreen([]request.Request{{Name: "req.curl"}})
 	screen.focusedPanel = focusedPanelDoButton
 
 	panel := screen.renderDoButton()
@@ -521,7 +527,7 @@ func TestDoButtonRendersAsInputPanel(t *testing.T) {
 
 func TestDoButtonEnterShowsLoadingState(t *testing.T) {
 	doer := &fakeDoer{response: request.Response{Status: "200 OK"}}
-	screen := NewScreen([]request.Request{{Name: "req.curl"}}, application.NewRequestDoer(doer))
+	screen := NewScreen([]request.Request{{Name: "req.curl"}}, nil, doer)
 	screen.focusedPanel = focusedPanelDoButton
 
 	updated, cmd := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEnter})
@@ -545,11 +551,11 @@ func TestDoButtonEnterShowsLoadingState(t *testing.T) {
 }
 
 func TestCommandPanelRendersFloatingCommandInput(t *testing.T) {
-	screen := NewScreen([]request.Request{{Name: "Req"}})
+	screen := newScreen([]request.Request{{Name: "Req"}})
 	screen.width = 80
 	screen.height = 20
-	screen.commandPanelOpen = true
-	screen.commandInput = ":q"
+	screen.commandPanel.Open = true
+	screen.commandPanel.Input = ":q"
 
 	view := screen.View()
 	if !strings.Contains(view, " Command ") {
@@ -561,9 +567,9 @@ func TestCommandPanelRendersFloatingCommandInput(t *testing.T) {
 }
 
 func TestCommandPanelOverlayPreservesBaseLineOutsidePanel(t *testing.T) {
-	screen := NewScreen([]request.Request{{Name: "Req"}})
-	screen.commandPanelOpen = true
-	screen.commandInput = ":"
+	screen := newScreen([]request.Request{{Name: "Req"}})
+	screen.commandPanel.Open = true
+	screen.commandPanel.Input = ":"
 
 	baseLine := "AAAAAAAAAABBBBBBBBBBBBBBBBBBBBCCCCCCCCCC"
 	baseView := strings.Join([]string{
@@ -573,7 +579,7 @@ func TestCommandPanelOverlayPreservesBaseLineOutsidePanel(t *testing.T) {
 		baseLine,
 		baseLine,
 	}, "\n")
-	view := screen.renderCommandPanel(baseView, 40)
+	view := screen.commandPanel.Render(baseView, 40)
 	line := strings.Split(view, "\n")[4]
 
 	if !strings.HasPrefix(line, "AAAAAAAAA") {
@@ -595,6 +601,10 @@ func enterBodyTextInsertMode(t *testing.T, screen Screen) Screen {
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
 	return screen
+}
+
+func newScreen(requests []request.Request) Screen {
+	return NewScreen(requests, nil, nil)
 }
 
 func updateScreen(t *testing.T, screen Screen, msg tea.Msg) (Screen, tea.Cmd) {
