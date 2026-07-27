@@ -47,6 +47,16 @@ type headerRow struct {
 	value string
 }
 
+type responseTab int
+
+const (
+	responseTabStats responseTab = iota
+	responseTabBody
+	responseTabHeaders
+	responseTabRaw
+	responseTabCount
+)
+
 type headersEditor struct {
 	rows         []headerRow
 	selectedRow  int
@@ -89,6 +99,7 @@ type Screen struct {
 	hasResponse          bool
 	responseError        string
 	requestInFlight      bool
+	selectedResponseTab  responseTab
 }
 
 func NewScreen(requests []request.Request, rw presentationrequest.RequestWriter, rd presentationrequest.RequestDoer) Screen {

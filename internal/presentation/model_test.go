@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/jzes/reqman/internal/domain/request"
 	presentationbody "github.com/jzes/reqman/internal/presentation/body"
@@ -59,6 +60,130 @@ func TestResponsePanelLeftNavigationFocusesRequests(t *testing.T) {
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
 	if screen.focusedPanel != focusedPanelRequests {
 		t.Fatalf("focused panel = %v, want requests", screen.focusedPanel)
+	}
+}
+
+func TestResponseRendersTabs(t *testing.T) {
+	screen := newScreen([]request.Request{{Name: "req.curl"}})
+	screen.hasResponse = true
+	screen.response = request.Response{Status: "200 OK", StatusCode: 200, Duration: 123 * time.Millisecond}
+
+	view := screen.renderResponse(80)
+	for _, tab := range []string{"Stats", "Body", "Headers", "Raw"} {
+		if !strings.Contains(view, tab) {
+			t.Fatalf("response view does not contain %s tab: %q", tab, view)
+		}
+	}
+	if !strings.Contains(view, "╭") || !strings.Contains(view, "╯") {
+		t.Fatalf("response view does not contain bordered tabs: %q", view)
+	}
+	plainView := ansiSequencePattern.ReplaceAllString(view, "")
+	plainLines := strings.Split(plainView, "\n")
+	if len(plainLines) < 3 {
+		t.Fatalf("response view does not contain tab content border: %q", view)
+	}
+	if !strings.HasPrefix(plainLines[2], "│") || !strings.Contains(plainLines[2], "╰") {
+		t.Fatalf("response content border is not connected to active tab: %q", view)
+	}
+	if !strings.Contains(view, "Duration: 123ms") {
+		t.Fatalf("response view does not contain stats content: %q", view)
+	}
+}
+
+func TestResponseBodyTabFormatsJSON(t *testing.T) {
+	screen := newScreen([]request.Request{{Name: "req.curl"}})
+	screen.hasResponse = true
+	screen.selectedResponseTab = responseTabBody
+	screen.response = request.Response{Body: `{"name":"x","items":[1,2]}`}
+
+	view := screen.renderResponse(80)
+	if !strings.Contains(view, "  \"name\": \"x\"") {
+		t.Fatalf("response body tab does not contain formatted JSON object: %q", view)
+	}
+	if !strings.Contains(view, "  \"items\": [") {
+		t.Fatalf("response body tab does not contain formatted JSON array: %q", view)
+	}
+}
+
+func TestResponseHeadersTabRendersSortedTable(t *testing.T) {
+	screen := newScreen([]request.Request{{Name: "req.curl"}})
+	screen.hasResponse = true
+	screen.selectedResponseTab = responseTabHeaders
+	screen.response = request.Response{Headers: map[string][]string{
+		"X-Zeta":       {"last"},
+		"Content-Type": {"application/json"},
+		"Accept":       {"application/json", "text/plain"},
+	}}
+
+	view := screen.renderResponse(80)
+	if !strings.Contains(view, "Header") || !strings.Contains(view, "Value") {
+		t.Fatalf("response headers tab does not contain table header: %q", view)
+	}
+	if !strings.Contains(view, "Accept") || !strings.Contains(view, "application/json, text/plain") {
+		t.Fatalf("response headers tab does not contain joined Accept header: %q", view)
+	}
+	acceptIndex := strings.Index(view, "Accept")
+	contentTypeIndex := strings.Index(view, "Content-Type")
+	zetaIndex := strings.Index(view, "X-Zeta")
+	if acceptIndex == -1 || contentTypeIndex == -1 || zetaIndex == -1 {
+		t.Fatalf("response headers tab is missing expected headers: %q", view)
+	}
+	if !(acceptIndex < contentTypeIndex && contentTypeIndex < zetaIndex) {
+		t.Fatalf("response headers are not sorted: %q", view)
+	}
+}
+
+func TestResponseTabNavigation(t *testing.T) {
+	screen := newScreen([]request.Request{{Name: "req.curl"}})
+	screen.focusedPanel = focusedPanelResponse
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{']'}})
+	if screen.selectedResponseTab != responseTabBody {
+		t.Fatalf("selected response tab after ] = %v, want body", screen.selectedResponseTab)
+	}
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'['}})
+	if screen.selectedResponseTab != responseTabStats {
+		t.Fatalf("selected response tab after [ = %v, want stats", screen.selectedResponseTab)
+	}
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'['}})
+	if screen.selectedResponseTab != responseTabRaw {
+		t.Fatalf("selected response tab after wrapped [ = %v, want raw", screen.selectedResponseTab)
+	}
+}
+
+func TestResponseInsertModeTabNavigation(t *testing.T) {
+	screen := newScreen([]request.Request{{Name: "req.curl"}})
+	screen.focusedPanel = focusedPanelResponse
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	if !screen.insertMode {
+		t.Fatal("insert mode is false, want true")
+	}
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyTab})
+	if screen.selectedResponseTab != responseTabBody {
+		t.Fatalf("selected response tab after tab = %v, want body", screen.selectedResponseTab)
+	}
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyShiftTab})
+	if screen.selectedResponseTab != responseTabStats {
+		t.Fatalf("selected response tab after shift+tab = %v, want stats", screen.selectedResponseTab)
+	}
+}
+
+func TestResponseInsertModeRendersGreenBorder(t *testing.T) {
+	screen := newScreen([]request.Request{{Name: "req.curl"}})
+	screen.width = 100
+	screen.height = 30
+	screen.focusedPanel = focusedPanelResponse
+	screen.insertMode = true
+
+	view := screen.View()
+	greenBorder := lipgloss.NewStyle().Foreground(lipgloss.Color("#50FA7B")).Render("╭")
+	if !strings.Contains(view, greenBorder) {
+		t.Fatalf("response insert mode view does not contain green border: %q", view)
 	}
 }
 

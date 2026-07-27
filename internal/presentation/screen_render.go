@@ -1,6 +1,8 @@
 package presentation
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -69,15 +71,15 @@ func (scr Screen) View() string {
 
 	usedHeight := lipgloss.Height(requestLine) + lipgloss.Height(headers)
 	remainingPanelHeight := max(2, screenHeight-usedHeight-inputStyle.GetVerticalFrameSize()*2)
-	bodyPanelHeight := max(1, remainingPanelHeight/2)
+	bodyPanelHeight := max(1, remainingPanelHeight*2/5)
 	responsePanelHeight := max(1, remainingPanelHeight-bodyPanelHeight)
 	body := renderPanelWithTitle(
 		bodyStyle.Height(bodyPanelHeight),
 		"Body",
 		scr.body.View(panelContentWidth, bodyPanelHeight, scr.focusedPanel == focusedPanelBody),
 	)
-	responseStyle := styleForPanel(panelStyle, scr.focusedPanel == focusedPanelResponse, false)
-	response := renderPanelWithTitle(responseStyle.Height(responsePanelHeight), "Response", scr.renderResponse())
+	responseStyle := styleForPanel(panelStyle, scr.focusedPanel == focusedPanelResponse, scr.insertMode)
+	response := renderPanelWithTitle(responseStyle.Height(responsePanelHeight), "Response", scr.renderResponse(panelContentWidth))
 	details := lipgloss.JoinVertical(lipgloss.Left, requestLine, headers, body, response)
 
 	mainView := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, details)
@@ -85,7 +87,7 @@ func (scr Screen) View() string {
 	return scr.commandPanel.Render(mainView, screenWidth)
 }
 
-func (scr Screen) renderResponse() string {
+func (scr Screen) renderResponse(widths ...int) string {
 	if scr.requestInFlight {
 		return "Executing request..."
 	}
@@ -98,6 +100,205 @@ func (scr Screen) renderResponse() string {
 		return "(empty)"
 	}
 
+	width := defaultScreenWidth
+	if len(widths) > 0 {
+		width = widths[0]
+	}
+
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		scr.renderConnectedResponseTabs(),
+		scr.renderSelectedResponseTabContent(width),
+	)
+}
+
+func (scr Screen) renderConnectedResponseTabs() string {
+	lines := strings.Split(scr.renderResponseTabs(), "\n")
+	if len(lines) <= 1 {
+		return strings.Join(lines, "\n")
+	}
+	return strings.Join(lines[:len(lines)-1], "\n")
+}
+
+func (scr Screen) renderResponseTabs() string {
+	tabs := []struct {
+		tab   responseTab
+		label string
+	}{
+		{responseTabStats, "Stats"},
+		{responseTabBody, "Body"},
+		{responseTabHeaders, "Headers"},
+		{responseTabRaw, "Raw"},
+	}
+
+	activeBorder := lipgloss.Border{
+		Top:         "─",
+		Bottom:      " ",
+		Left:        "│",
+		Right:       "│",
+		TopLeft:     "╭",
+		TopRight:    "╮",
+		BottomLeft:  "│",
+		BottomRight: "│",
+	}
+	activeStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("205")).
+		Border(activeBorder).
+		BorderForeground(lipgloss.Color("205")).
+		Padding(0, 1)
+	inactiveStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("245")).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("245")).
+		Padding(0, 1)
+
+	renderedTabs := make([]string, 0, len(tabs))
+	for _, tab := range tabs {
+		label := tab.label
+		if scr.selectedResponseTab == tab.tab {
+			renderedTabs = append(renderedTabs, activeStyle.Render(label))
+			continue
+		}
+		renderedTabs = append(renderedTabs, inactiveStyle.Render(label))
+	}
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, renderedTabs...)
+}
+
+func (scr Screen) renderSelectedResponseTabContent(width int) string {
+	content := scr.renderSelectedResponseTab(width)
+	outerWidth := max(4, width)
+	contentWidth := max(0, outerWidth-4)
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		lines[i] = borderStyle.Render("│") + " " + padOrTruncate(line, contentWidth) + " " + borderStyle.Render("│")
+	}
+
+	parts := make([]string, 0, len(lines)+2)
+	parts = append(parts, borderStyle.Render(scr.renderResponseTabContentTopBorder(outerWidth)))
+	parts = append(parts, lines...)
+	parts = append(parts, borderStyle.Render("╰"+strings.Repeat("─", max(0, outerWidth-2))+"╯"))
+	return strings.Join(parts, "\n")
+}
+
+func (scr Screen) renderResponseTabContentTopBorder(width int) string {
+	activeTabLeft, activeTabWidth := scr.selectedResponseTabPosition()
+	activeTabRight := activeTabLeft + activeTabWidth - 1
+
+	var builder strings.Builder
+	for column := 0; column < width; column++ {
+		char := "─"
+		if column == 0 {
+			char = "╭"
+		}
+		if column == width-1 {
+			char = "╮"
+		}
+
+		if column >= activeTabLeft && column <= activeTabRight {
+			switch column {
+			case activeTabLeft:
+				char = "╯"
+				if column == 0 {
+					char = "│"
+				}
+			case activeTabRight:
+				char = "╰"
+				if column == width-1 {
+					char = "│"
+				}
+			default:
+				char = " "
+			}
+		}
+
+		builder.WriteString(char)
+	}
+
+	return builder.String()
+}
+
+func (scr Screen) selectedResponseTabPosition() (int, int) {
+	tabs := []struct {
+		tab   responseTab
+		label string
+	}{
+		{responseTabStats, "Stats"},
+		{responseTabBody, "Body"},
+		{responseTabHeaders, "Headers"},
+		{responseTabRaw, "Raw"},
+	}
+
+	offset := 0
+	for _, tab := range tabs {
+		width := lipgloss.Width(tab.label) + 4
+		if scr.selectedResponseTab == tab.tab {
+			return offset, width
+		}
+		offset += width
+	}
+
+	return 0, lipgloss.Width("Stats") + 4
+}
+
+func (scr Screen) renderSelectedResponseTab(width int) string {
+	switch scr.selectedResponseTab {
+	case responseTabBody:
+		return scr.renderResponseBody()
+	case responseTabHeaders:
+		return scr.renderResponseHeaders(width)
+	case responseTabRaw:
+		return scr.renderResponseRaw()
+	default:
+		return scr.renderResponseStats()
+	}
+}
+
+func (scr Screen) renderResponseStats() string {
+	var builder strings.Builder
+	fmt.Fprintf(&builder, "Status: %s\n", scr.response.Status)
+	fmt.Fprintf(&builder, "Status Code: %d\n", scr.response.StatusCode)
+	fmt.Fprintf(&builder, "Duration: %s", scr.response.Duration)
+	return builder.String()
+}
+
+func (scr Screen) renderResponseBody() string {
+	return formatJSONBody(scr.response.Body)
+}
+
+func (scr Screen) renderResponseHeaders(width int) string {
+	headerColumnWidth := min(25, max(10, width/3))
+	valueColumnWidth := max(10, width-headerColumnWidth-2)
+
+	var builder strings.Builder
+	builder.WriteString(padOrTruncate("Header", headerColumnWidth))
+	builder.WriteString("  ")
+	builder.WriteString(padOrTruncate("Value", valueColumnWidth))
+
+	if len(scr.response.Headers) == 0 {
+		builder.WriteString("\n  (empty)")
+		return builder.String()
+	}
+
+	keys := make([]string, 0, len(scr.response.Headers))
+	for key := range scr.response.Headers {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		builder.WriteString("\n")
+		builder.WriteString(padOrTruncate(key, headerColumnWidth))
+		builder.WriteString("  ")
+		builder.WriteString(padOrTruncate(strings.Join(scr.response.Headers[key], ", "), valueColumnWidth))
+	}
+
+	return builder.String()
+}
+
+func (scr Screen) renderResponseRaw() string {
 	var builder strings.Builder
 	fmt.Fprintf(&builder, "URL: %s\n", scr.response.URL.String())
 	fmt.Fprintf(&builder, "Status: %s\n", scr.response.Status)
@@ -126,6 +327,18 @@ func (scr Screen) renderResponse() string {
 	}
 
 	return strings.TrimRight(builder.String(), "\n")
+}
+
+func formatJSONBody(body string) string {
+	if strings.TrimSpace(body) == "" {
+		return "(empty)"
+	}
+
+	var formatted bytes.Buffer
+	if err := json.Indent(&formatted, []byte(body), "", "  "); err != nil {
+		return body
+	}
+	return formatted.String()
 }
 
 func (scr Screen) renderDoButton() string {
