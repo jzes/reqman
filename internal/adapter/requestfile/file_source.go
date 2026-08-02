@@ -29,37 +29,47 @@ func NewFileSource(parsers map[string]Parser) FileSource {
 	return FileSource{parsers: parsers}
 }
 
-func (s FileSource) List(dir string) ([]request.Request, error) {
+func (s FileSource) List(dir string) ([]string, error) {
 	entries, err := readDirectoryEntries(dir)
 	if err != nil {
 		return nil, err
 	}
 
-	items := []request.Request{}
+	paths := []string{}
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
 		}
 
-		item, err := readItem(dir, entry)
-		if err != nil {
-			return nil, err
-		}
-
-		parser, ok := s.parsers[item.Extension]
+		extension := filepath.Ext(entry.Name())
+		_, ok := s.parsers[extension]
 		if !ok {
 			continue
 		}
 
-		parsed, err := parser(item)
-		if err != nil {
-			return nil, fmt.Errorf("parse request file %q: %w", item.Path, err)
-		}
-
-		items = append(items, parsed)
+		paths = append(paths, filepath.Join(dir, entry.Name()))
 	}
 
-	return items, nil
+	return paths, nil
+}
+
+func (s FileSource) Load(path string) (request.Request, error) {
+	item, err := readItem(path)
+	if err != nil {
+		return request.Request{}, err
+	}
+
+	parser, ok := s.parsers[item.Extension]
+	if !ok {
+		return request.Request{}, fmt.Errorf("unsupported request file extension %q", item.Extension)
+	}
+
+	parsed, err := parser(item)
+	if err != nil {
+		return request.Request{}, fmt.Errorf("parse request file %q: %w", item.Path, err)
+	}
+
+	return parsed, nil
 }
 
 func (s FileSource) Write(request request.Request) error {
@@ -109,16 +119,16 @@ func shellQuote(arg string) string {
 	return "'" + strings.ReplaceAll(arg, "'", "'\\''") + "'"
 }
 
-func readItem(dir string, entry os.DirEntry) (Item, error) {
-	path := filepath.Join(dir, entry.Name())
+func readItem(path string) (Item, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return Item{}, err
 	}
 
+	name := filepath.Base(path)
 	return Item{
-		Name:      entry.Name(),
-		Extension: filepath.Ext(entry.Name()),
+		Name:      name,
+		Extension: filepath.Ext(name),
 		Path:      path,
 		Content:   content,
 	}, nil

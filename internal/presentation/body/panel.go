@@ -217,7 +217,7 @@ func (p Panel) Style(style lipgloss.Style, focused bool) lipgloss.Style {
 	case InsertMode:
 		return style.BorderForeground(lipgloss.Color("#FFB86C"))
 	default:
-		return style.BorderForeground(lipgloss.Color("99"))
+		return style.BorderForeground(lipgloss.Color("#C084FC"))
 	}
 }
 
@@ -264,7 +264,7 @@ func (p Panel) viewWithBarCursor(view string, width int) string {
 	}
 
 	column := p.textArea.LineInfo().ColumnOffset
-	lines[row] = replaceAtVisibleColumn(lines[row], column, "|")
+	lines[row] = insertAtVisibleColumn(lines[row], column, "|")
 	return strings.Join(lines, "\n")
 }
 
@@ -293,7 +293,7 @@ func wrappedLineCount(line string, width int) int {
 	return (lineWidth + width - 1) / width
 }
 
-func replaceAtVisibleColumn(line string, column int, value string) string {
+func insertAtVisibleColumn(line string, column int, value string) string {
 	visibleColumn := 0
 	for i := 0; i < len(line); {
 		if line[i] == '\x1b' {
@@ -306,7 +306,7 @@ func replaceAtVisibleColumn(line string, column int, value string) string {
 			break
 		}
 		if visibleColumn >= column {
-			return line[:i] + value + line[i+size:]
+			return line[:i] + value + line[i:]
 		}
 		visibleColumn += ansi.StringWidth(string(r))
 		i += size

@@ -72,14 +72,18 @@ func TestFileSourceWritesMultilineJSONBodyRoundTrip(t *testing.T) {
 		t.Fatalf("content contains escaped newlines: %q", string(content))
 	}
 
-	requests, err := source.List(dir)
+	paths, err := source.List(dir)
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
-	if len(requests) != 1 {
-		t.Fatalf("requests len = %d, want 1", len(requests))
+	if len(paths) != 1 {
+		t.Fatalf("paths len = %d, want 1", len(paths))
 	}
-	if got := requests[0].Body; got != body {
+	loaded, err := source.Load(paths[0])
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got := loaded.Body; got != body {
 		t.Fatalf("Body = %q, want %q", got, body)
 	}
 }
@@ -98,21 +102,49 @@ func TestFileSourceWritesEmptyRequestRoundTrip(t *testing.T) {
 		t.Fatalf("Write() error = %v", err)
 	}
 
-	requests, err := source.List(dir)
+	paths, err := source.List(dir)
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
-	if len(requests) != 1 {
-		t.Fatalf("requests len = %d, want 1", len(requests))
+	if len(paths) != 1 {
+		t.Fatalf("paths len = %d, want 1", len(paths))
 	}
-	if got := requests[0].Name; got != "empty.curl" {
+	if got := paths[0]; got != path {
+		t.Fatalf("path = %q, want %q", got, path)
+	}
+	loaded, err := source.Load(paths[0])
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got := loaded.Name; got != "empty.curl" {
 		t.Fatalf("Name = %q, want empty.curl", got)
 	}
-	if got := requests[0].URL.String(); got != "" {
+	if got := loaded.URL.String(); got != "" {
 		t.Fatalf("URL = %q, want empty", got)
 	}
-	if got := requests[0].Method; got != request.MethodGet {
+	if got := loaded.Method; got != request.MethodGet {
 		t.Fatalf("Method = %q, want GET", got)
+	}
+}
+
+func TestFileSourceListSkipsInvalidCurlContent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bad.curl")
+	if err := os.WriteFile(path, []byte("curl -X"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	source := NewFileSource(map[string]Parser{CurlFileExtension: ParseCurlRequest})
+	paths, err := source.List(dir)
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(paths) != 1 || paths[0] != path {
+		t.Fatalf("paths = %v, want [%q]", paths, path)
+	}
+
+	if _, err := source.Load(path); err == nil {
+		t.Fatal("Load() error = nil, want error")
 	}
 }
 

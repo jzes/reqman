@@ -26,14 +26,14 @@ func main() {
 	writer := application.NewRequestWriter(fileSource, requestsDir)
 	doer := application.NewRequestDoer(httpClient)
 
-	requests, err := loader.LoadFromDirectory(requestsDir)
+	requestPaths, err := loader.List(requestsDir)
 	if err != nil {
-		log.Printf("Error loading requests from %q: %v", requestsDir, err)
+		log.Printf("Error listing requests from %q: %v", requestsDir, err)
 		os.Exit(1)
 	}
 
 	program := tea.NewProgram(
-		presentation.NewScreen(requests, writer, doer),
+		presentation.NewScreen(requestPaths, writer, doer, loader),
 		tea.WithAltScreen(),
 	)
 	if _, err := program.Run(); err != nil {

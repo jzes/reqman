@@ -153,7 +153,7 @@ func (p urlPanel) Style(style lipgloss.Style, focused bool) lipgloss.Style {
 	case urlPanelModeInsert:
 		return style.BorderForeground(lipgloss.Color("#FFB86C"))
 	default:
-		return style.BorderForeground(lipgloss.Color("99"))
+		return style.BorderForeground(lipgloss.Color(focusedPurple))
 	}
 }
 
@@ -176,10 +176,10 @@ func (p *urlPanel) enterInsertMode() tea.Cmd {
 }
 
 func (p urlPanel) viewWithBarCursor(view string) string {
-	return replaceAtURLColumn(view, p.input.Position(), "|")
+	return insertAtURLColumn(view, p.input.Position(), "|")
 }
 
-func replaceAtURLColumn(line string, column int, value string) string {
+func insertAtURLColumn(line string, column int, value string) string {
 	if column < 0 {
 		column = 0
 	}
@@ -195,7 +195,7 @@ func replaceAtURLColumn(line string, column int, value string) string {
 			break
 		}
 		if visibleColumn >= column {
-			return line[:i] + value + line[i+size:]
+			return line[:i] + value + line[i:]
 		}
 		visibleColumn += ansi.StringWidth(string(r))
 		i += size

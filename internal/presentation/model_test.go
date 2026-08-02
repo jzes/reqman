@@ -1,6 +1,7 @@
 package presentation
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -25,6 +26,77 @@ func TestViewRendersBodyAndResponsePanels(t *testing.T) {
 	}
 	if !strings.Contains(view, "Response") {
 		t.Fatal("view does not contain Response panel title")
+	}
+}
+
+func TestViewRendersRequestNamesWithoutExtension(t *testing.T) {
+	screen := newScreen([]request.Request{{Name: "books.curl"}})
+
+	view := screen.View()
+	if !strings.Contains(view, "books") {
+		t.Fatalf("view does not contain request name without extension: %q", view)
+	}
+	if strings.Contains(view, "books.curl") {
+		t.Fatalf("view contains request extension: %q", view)
+	}
+}
+
+func TestScreenLoadsOnlySelectedRequest(t *testing.T) {
+	loader := &countingLoader{requests: map[string]request.Request{
+		"one.curl": {Name: "one.curl", Body: "one"},
+		"two.curl": {Name: "two.curl", Body: "two"},
+	}}
+	screen := NewScreen([]string{"one.curl", "two.curl"}, nil, nil, loader)
+
+	if got := loader.calls["one.curl"]; got != 1 {
+		t.Fatalf("one.curl load calls = %d, want 1", got)
+	}
+	if got := loader.calls["two.curl"]; got != 0 {
+		t.Fatalf("two.curl load calls = %d, want 0", got)
+	}
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	if got := loader.calls["two.curl"]; got != 1 {
+		t.Fatalf("two.curl load calls after selection = %d, want 1", got)
+	}
+}
+
+func TestViewRendersTopBar(t *testing.T) {
+	screen := newScreen([]request.Request{{Name: "req.curl"}})
+	screen.width = 80
+
+	view := ansiSequencePattern.ReplaceAllString(screen.View(), "")
+	firstLine := strings.Split(view, "\n")[0]
+	if !strings.HasPrefix(firstLine, "Req-Man") {
+		t.Fatalf("top bar = %q, want Req-Man on the left", firstLine)
+	}
+	if !strings.HasSuffix(firstLine, ": to open commands") {
+		t.Fatalf("top bar = %q, want command hint on the right", firstLine)
+	}
+}
+
+func TestRequestsPanelScrollsToSelectedRequest(t *testing.T) {
+	requests := make([]request.Request, 10)
+	for i := range requests {
+		requests[i] = request.Request{Name: fmt.Sprintf("req-%d.curl", i+1)}
+	}
+	screen := newScreen(requests)
+	screen.height = 6
+	screen.focusedPanel = focusedPanelRequests
+
+	for range 5 {
+		screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	}
+
+	if got := screen.requestScrollOffset; got != 3 {
+		t.Fatalf("request scroll offset = %d, want 3", got)
+	}
+	view := ansiSequencePattern.ReplaceAllString(screen.View(), "")
+	if strings.Contains(view, "1. req-1") {
+		t.Fatalf("view contains scrolled-out first request: %q", view)
+	}
+	if !strings.Contains(view, "❯ 6. req-6") {
+		t.Fatalf("view does not contain selected request in visible window: %q", view)
 	}
 }
 
@@ -419,7 +491,11 @@ func TestURLCursorModeTracksInsertAndNavigationModes(t *testing.T) {
 }
 
 func TestURLViewRendersBarCursorOnlyInTextInsertMode(t *testing.T) {
-	screen := newScreen([]request.Request{{}})
+	parsedURL, err := request.NewURL("abc")
+	if err != nil {
+		t.Fatalf("NewURL() error = %v", err)
+	}
+	screen := newScreen([]request.Request{{URL: parsedURL}})
 	screen.focusedPanel = focusedPanelURL
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
@@ -432,6 +508,9 @@ func TestURLViewRendersBarCursorOnlyInTextInsertMode(t *testing.T) {
 	view = screen.url.View(20, true)
 	if !strings.Contains(view, "|") {
 		t.Fatalf("insert URL view does not contain bar cursor: %q", view)
+	}
+	if !strings.Contains(view, "|abc") {
+		t.Fatalf("insert URL view overwrote character under cursor: %q", view)
 	}
 }
 
@@ -446,11 +525,11 @@ func TestURLViewEmptyInsertModeDoesNotLeakANSISequence(t *testing.T) {
 	}
 }
 
-func TestReplaceAtURLColumnSkipsANSISequences(t *testing.T) {
+func TestInsertAtURLColumnSkipsANSISequences(t *testing.T) {
 	line := "\x1b[38;5;240mhttp://localhost\x1b[0m"
-	want := "\x1b[38;5;240m|ttp://localhost\x1b[0m"
-	if got := replaceAtURLColumn(line, 0, "|"); got != want {
-		t.Fatalf("replaceAtURLColumn() = %q, want %q", got, want)
+	want := "\x1b[38;5;240m|http://localhost\x1b[0m"
+	if got := insertAtURLColumn(line, 0, "|"); got != want {
+		t.Fatalf("insertAtURLColumn() = %q, want %q", got, want)
 	}
 }
 
@@ -669,7 +748,7 @@ func TestBodyCursorModeTracksInsertAndNavigationModes(t *testing.T) {
 }
 
 func TestBodyViewRendersBarCursorOnlyInTextInsertMode(t *testing.T) {
-	screen := newScreen([]request.Request{{Body: ""}})
+	screen := newScreen([]request.Request{{Body: "abc"}})
 	screen.focusedPanel = focusedPanelBody
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
@@ -682,6 +761,9 @@ func TestBodyViewRendersBarCursorOnlyInTextInsertMode(t *testing.T) {
 	view = screen.body.View(20, 3, true)
 	if !strings.Contains(view, "|") {
 		t.Fatalf("insert body view does not contain bar cursor: %q", view)
+	}
+	if !strings.Contains(view, "|abc") {
+		t.Fatalf("insert body view overwrote character under cursor: %q", view)
 	}
 }
 
@@ -777,7 +859,7 @@ func TestEscDoesNotSaveRequest(t *testing.T) {
 	}
 
 	writer := &fakeWriter{}
-	screen := NewScreen([]request.Request{{URL: parsedURL}}, writer, nil)
+	screen := newScreenWithDeps([]request.Request{{URL: parsedURL}}, writer, nil)
 	screen.focusedPanel = focusedPanelBody
 	screen = enterBodyTextInsertMode(t, screen)
 	if got := screen.body.Value(); got != "" {
@@ -805,13 +887,13 @@ func TestCommandPanelWriteCommandSavesRequest(t *testing.T) {
 	}
 
 	writer := &fakeWriter{}
-	screen := NewScreen([]request.Request{{Name: "req.curl", Path: "req.curl", URL: parsedURL}}, writer, nil)
+	screen := newScreenWithDeps([]request.Request{{Name: "req.curl", Path: "req.curl", URL: parsedURL}}, writer, nil)
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'w'}})
 	screen, cmd := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd != nil {
-		t.Fatalf("command after :w = %p, want nil", cmd)
+		t.Fatalf("command after ❯w = %p, want nil", cmd)
 	}
 	if got := writer.calls; got != 1 {
 		t.Fatalf("write calls = %d, want 1", got)
@@ -824,9 +906,77 @@ func TestCommandPanelWriteCommandSavesRequest(t *testing.T) {
 	}
 }
 
+func TestCommandPanelWriteRunCommandSavesAndRunsRequest(t *testing.T) {
+	parsedURL, err := request.NewURL("http://localhost/books")
+	if err != nil {
+		t.Fatalf("NewURL() error = %v", err)
+	}
+
+	writer := &fakeWriter{}
+	doer := &fakeDoer{response: request.Response{Status: "200 OK"}}
+	screen := newScreenWithDeps([]request.Request{{Name: "req.curl", Path: "req.curl", URL: parsedURL}}, writer, doer)
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("wr")})
+	screen, cmd := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("do command is nil")
+	}
+	if got := writer.calls; got != 1 {
+		t.Fatalf("write calls = %d, want 1", got)
+	}
+	if got := writer.request.Name; got != "req.curl" {
+		t.Fatalf("written request name = %q, want req.curl", got)
+	}
+	if !screen.requestInFlight {
+		t.Fatal("request in flight is false, want true")
+	}
+
+	screen, _ = updateScreen(t, screen, firstCommandMessage(t, cmd))
+	if got := doer.calls; got != 1 {
+		t.Fatalf("do calls after ❯wr = %d, want 1", got)
+	}
+	if got := doer.request.Name; got != "req.curl" {
+		t.Fatalf("request name = %q, want req.curl", got)
+	}
+	if screen.commandPanel.Open {
+		t.Fatal("command panel is open, want closed")
+	}
+}
+
+func TestCommandPanelWriteQuitCommandSavesAndQuits(t *testing.T) {
+	parsedURL, err := request.NewURL("http://localhost/books")
+	if err != nil {
+		t.Fatalf("NewURL() error = %v", err)
+	}
+
+	writer := &fakeWriter{}
+	doer := &fakeDoer{response: request.Response{Status: "200 OK"}}
+	screen := newScreenWithDeps([]request.Request{{Name: "req.curl", Path: "req.curl", URL: parsedURL}}, writer, doer)
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("wq")})
+	screen, cmd := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("quit command is nil")
+	}
+	if got := writer.calls; got != 1 {
+		t.Fatalf("write calls = %d, want 1", got)
+	}
+	if got := writer.request.Name; got != "req.curl" {
+		t.Fatalf("written request name = %q, want req.curl", got)
+	}
+	if got := doer.calls; got != 0 {
+		t.Fatalf("do calls = %d, want 0", got)
+	}
+	if screen.commandPanel.Open {
+		t.Fatal("command panel is open, want closed")
+	}
+}
+
 func TestNewRequestFlowCreatesFileSelectsRequestAndEditsURL(t *testing.T) {
 	writer := &fakeWriter{}
-	screen := NewScreen(nil, writer, nil)
+	screen := newScreenWithDeps(nil, writer, nil)
 	screen.focusedPanel = focusedPanelRequests
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
@@ -864,7 +1014,7 @@ func TestNewRequestFlowCreatesFileSelectsRequestAndEditsURL(t *testing.T) {
 
 func TestNewRequestFlowEscCancelsCreation(t *testing.T) {
 	writer := &fakeWriter{}
-	screen := NewScreen(nil, writer, nil)
+	screen := newScreenWithDeps(nil, writer, nil)
 	screen.focusedPanel = focusedPanelRequests
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
@@ -934,7 +1084,7 @@ func TestCommandPanelRunCommandRunsSelectedRequest(t *testing.T) {
 			Duration: 12 * time.Millisecond,
 		},
 	}
-	screen := NewScreen([]request.Request{{Name: "req.curl", URL: parsedURL}}, nil, doer)
+	screen := newScreenWithDeps([]request.Request{{Name: "req.curl", URL: parsedURL}}, nil, doer)
 
 	updated, _ := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
 	updated, _ = updateScreen(t, updated, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
@@ -948,7 +1098,7 @@ func TestCommandPanelRunCommandRunsSelectedRequest(t *testing.T) {
 
 	updated, _ = updateScreen(t, updated, firstCommandMessage(t, cmd))
 	if got := doer.calls; got != 1 {
-		t.Fatalf("do calls after :r = %d, want 1", got)
+		t.Fatalf("do calls after ❯r = %d, want 1", got)
 	}
 	if got := doer.request.Name; got != "req.curl" {
 		t.Fatalf("request name = %q, want %q", got, "req.curl")
@@ -998,7 +1148,7 @@ func TestStatusPanelRendersDoingStateWithSpinner(t *testing.T) {
 
 func TestCommandPanelRunCommandShowsLoadingState(t *testing.T) {
 	doer := &fakeDoer{response: request.Response{Status: "200 OK"}}
-	screen := NewScreen([]request.Request{{Name: "req.curl"}}, nil, doer)
+	screen := newScreenWithDeps([]request.Request{{Name: "req.curl"}}, nil, doer)
 
 	updated, _ := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
 	updated, _ = updateScreen(t, updated, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
@@ -1037,7 +1187,7 @@ func TestDoButtonDoesNotEnterInsertMode(t *testing.T) {
 
 func TestDoButtonEnterDoesNotRunRequest(t *testing.T) {
 	doer := &fakeDoer{response: request.Response{Status: "200 OK"}}
-	screen := NewScreen([]request.Request{{Name: "req.curl"}}, nil, doer)
+	screen := newScreenWithDeps([]request.Request{{Name: "req.curl"}}, nil, doer)
 	screen.focusedPanel = focusedPanelDoButton
 
 	updated, cmd := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEnter})
@@ -1057,21 +1207,34 @@ func TestCommandPanelRendersFloatingCommandInput(t *testing.T) {
 	screen.width = 80
 	screen.height = 20
 	screen.commandPanel.Open = true
-	screen.commandPanel.Input = ":q"
+	screen.commandPanel.Input = "❯q"
 
 	view := screen.View()
 	if !strings.Contains(view, " Command ") {
 		t.Fatal("view does not contain command panel title")
 	}
-	if !strings.Contains(view, ":q") {
+	if !strings.Contains(view, "❯q") {
 		t.Fatal("view does not contain command input")
+	}
+	plainView := ansiSequencePattern.ReplaceAllString(view, "")
+	if !strings.Contains(plainView, "") || !strings.Contains(plainView, "Commands") || !strings.Contains(plainView, "") {
+		t.Fatalf("view does not contain command help title capsule: %q", plainView)
+	}
+	if !strings.Contains(plainView, "Command") || !strings.Contains(plainView, "Action") {
+		t.Fatalf("view does not contain command help table header: %q", plainView)
+	}
+	if !strings.Contains(plainView, "wr") || !strings.Contains(plainView, "Save and run") {
+		t.Fatalf("view does not contain write-run command help: %q", plainView)
+	}
+	if !strings.Contains(plainView, "wq") || !strings.Contains(plainView, "Save and quit") {
+		t.Fatalf("view does not contain write-quit command help: %q", plainView)
 	}
 }
 
 func TestCommandPanelOverlayPreservesBaseLineOutsidePanel(t *testing.T) {
 	screen := newScreen([]request.Request{{Name: "Req"}})
 	screen.commandPanel.Open = true
-	screen.commandPanel.Input = ":"
+	screen.commandPanel.Input = "❯"
 
 	baseLine := "AAAAAAAAAABBBBBBBBBBBBBBBBBBBBCCCCCCCCCC"
 	baseView := strings.Join([]string{
@@ -1113,7 +1276,46 @@ func enterURLTextInsertMode(t *testing.T, screen Screen) Screen {
 }
 
 func newScreen(requests []request.Request) Screen {
-	return NewScreen(requests, nil, nil)
+	return newScreenWithDeps(requests, nil, nil)
+
+}
+
+func newScreenWithDeps(requests []request.Request, writer *fakeWriter, doer *fakeDoer) Screen {
+	paths := make([]string, len(requests))
+	requestsByPath := make(map[string]request.Request, len(requests))
+	for i, req := range requests {
+		path := req.Path
+		if path == "" {
+			path = req.Name
+		}
+		if path == "" {
+			path = fmt.Sprintf("req-%d.curl", i)
+		}
+		paths[i] = path
+		requestsByPath[path] = req
+	}
+	return NewScreen(paths, writer, doer, fakeLoader{requests: requestsByPath})
+}
+
+type fakeLoader struct {
+	requests map[string]request.Request
+}
+
+func (l fakeLoader) Load(path string) (request.Request, error) {
+	return l.requests[path], nil
+}
+
+type countingLoader struct {
+	requests map[string]request.Request
+	calls    map[string]int
+}
+
+func (l *countingLoader) Load(path string) (request.Request, error) {
+	if l.calls == nil {
+		l.calls = make(map[string]int)
+	}
+	l.calls[path]++
+	return l.requests[path], nil
 }
 
 func updateScreen(t *testing.T, screen Screen, msg tea.Msg) (Screen, tea.Cmd) {

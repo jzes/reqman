@@ -11,6 +11,7 @@ import (
 func (scr Screen) updateWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	scr.width = msg.Width
 	scr.height = msg.Height
+	scr.ensureSelectedRequestVisible()
 	return scr, nil
 }
 
@@ -32,6 +33,17 @@ func (scr Screen) processKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					return scr, tea.Batch(cmd, scr.statusSpinner.Tick)
 				}
 			}
+		case presentationcommandpanel.ActionWriteRun:
+			scr.writeSelectedRequest()
+			if !scr.requestInFlight {
+				if cmd := scr.requestCommand(); cmd != nil {
+					scr.requestInFlight = true
+					return scr, tea.Batch(cmd, scr.statusSpinner.Tick)
+				}
+			}
+		case presentationcommandpanel.ActionWriteQuit:
+			scr.writeSelectedRequest()
+			return scr, tea.Quit
 		}
 		return scr, nil
 	}
@@ -84,7 +96,7 @@ func (scr Screen) processEscapeKey() (tea.Model, tea.Cmd) {
 
 func (scr Screen) processNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if msg.Type == tea.KeyRunes && len(msg.Runes) == 1 && msg.Runes[0] == ':' {
-		scr.commandPanel.Activate(":")
+		scr.commandPanel.Activate(commandPrompt)
 		return scr, nil
 	}
 

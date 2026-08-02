@@ -19,8 +19,13 @@ const (
 	sidebarContentWidth  = 25
 	methodContentWidth   = 14
 	doButtonContentWidth = 10
+	topBarHeight         = 1
 	defaultScreenWidth   = 100
 	defaultScreenHeight  = 30
+	focusMarker          = "❯ "
+	commandPrompt        = "❯"
+	defaultPurple        = "#6272A4"
+	focusedPurple        = "#C084FC"
 )
 
 type focusedPanel int
@@ -68,14 +73,19 @@ var (
 	ansiSuffixPattern   = regexp.MustCompile(`(?:\x1b\[[0-9;]*m)+$`)
 	ansiSequencePattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 	titleStyle          = lipgloss.NewStyle().Bold(true)
-	focusedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	sidebarStyle        = lipgloss.NewStyle().
-				Width(25).
-				Border(lipgloss.RoundedBorder()).
-				Align(lipgloss.Left)
+	focusedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color(focusedPurple))
+	topBarStyle         = lipgloss.NewStyle().
+				Background(lipgloss.Color("#C084FC")).
+				Foreground(lipgloss.Color("#1F1235"))
+	sidebarStyle = lipgloss.NewStyle().
+			Width(25).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(defaultPurple)).
+			Align(lipgloss.Left)
 	inputStyle = lipgloss.NewStyle().
 			Width(25).
-			Border(lipgloss.RoundedBorder())
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(defaultPurple))
 )
 
 type Screen struct {
@@ -83,8 +93,11 @@ type Screen struct {
 	body                 presentationbody.Panel
 	methodList           list.Model
 	methodSelectorOpen   bool
+	requestPaths         []string
 	requests             []request.Request
+	loadedRequests       map[int]bool
 	selectedRequestIndex int
+	requestScrollOffset  int
 	headersEditor        headersEditor
 	focusedPanel         focusedPanel
 	insertMode           bool
@@ -92,6 +105,7 @@ type Screen struct {
 	height               int
 	requestWriter        presentationrequest.RequestWriter
 	requestDoer          presentationrequest.RequestDoer
+	requestLoader        presentationrequest.RequestLoader
 	statusSpinner        spinner.Model
 	commandPanel         presentationcommandpanel.Panel
 	newRequestPanel      presentationcommandpanel.Panel
@@ -102,16 +116,19 @@ type Screen struct {
 	selectedResponseTab  responseTab
 }
 
-func NewScreen(requests []request.Request, rw presentationrequest.RequestWriter, rd presentationrequest.RequestDoer) Screen {
+func NewScreen(requestPaths []string, rw presentationrequest.RequestWriter, rd presentationrequest.RequestDoer, rl presentationrequest.RequestLoader) Screen {
 	screen := Screen{
-		requests:      requests,
-		headersEditor: newHeadersEditor(),
-		url:           newURLPanel(),
-		body:          presentationbody.NewPanel(),
-		methodList:    newMethodList(),
-		statusSpinner: spinner.New(spinner.WithSpinner(spinner.Line)),
-		requestWriter: rw,
-		requestDoer:   rd,
+		requestPaths:   requestPaths,
+		requests:       make([]request.Request, len(requestPaths)),
+		loadedRequests: make(map[int]bool),
+		headersEditor:  newHeadersEditor(),
+		url:            newURLPanel(),
+		body:           presentationbody.NewPanel(),
+		methodList:     newMethodList(),
+		statusSpinner:  spinner.New(spinner.WithSpinner(spinner.Line)),
+		requestWriter:  rw,
+		requestDoer:    rd,
+		requestLoader:  rl,
 	}
 
 	screen.showSelectedRequestURL()

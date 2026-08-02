@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -22,22 +23,27 @@ func (scr Screen) View() string {
 	if screenHeight == 0 {
 		screenHeight = defaultScreenHeight
 	}
+	contentHeight := max(1, screenHeight-topBarHeight)
 
-	var sidebarBuilder strings.Builder
-	if len(scr.requests) == 0 {
-		sidebarBuilder.WriteString("  (empty)\n")
+	requestPanelContentHeight := scr.requestPanelContentHeight()
+	sidebarLines := make([]string, 0, requestPanelContentHeight)
+	if len(scr.requestPaths) == 0 {
+		sidebarLines = append(sidebarLines, "  (empty)")
 	} else {
-		for i, req := range scr.requests {
-			displayReq := req.Name
+		start := min(scr.requestScrollOffset, len(scr.requestPaths))
+		end := min(len(scr.requestPaths), start+requestPanelContentHeight)
+		for i, path := range scr.requestPaths[start:end] {
+			requestIndex := start + i
+			displayReq := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 			if len(displayReq) > 28 {
 				displayReq = displayReq[:25] + "..."
 			}
 
 			prefix := "  "
-			if i == scr.selectedRequestIndex {
-				prefix = focusedStyle.Render("> ")
+			if requestIndex == scr.selectedRequestIndex {
+				prefix = focusedStyle.Render(focusMarker)
 			}
-			fmt.Fprintf(&sidebarBuilder, "%s%d. %s\n", prefix, i+1, displayReq)
+			sidebarLines = append(sidebarLines, fmt.Sprintf("%s%d. %s", prefix, requestIndex+1, displayReq))
 		}
 	}
 
@@ -45,9 +51,9 @@ func (scr Screen) View() string {
 	sidebar := renderPanelWithTitle(
 		sidebarPanelStyle.
 			Width(sidebarContentWidth).
-			Height(max(0, screenHeight-sidebarStyle.GetVerticalFrameSize())),
+			Height(requestPanelContentHeight),
 		"Requests",
-		sidebarBuilder.String(),
+		strings.Join(sidebarLines, "\n"),
 	)
 
 	detailsWidth := max(0, screenWidth-lipgloss.Width(sidebar))
@@ -57,12 +63,12 @@ func (scr Screen) View() string {
 	headersStyle := styleForPanel(panelStyle, scr.focusedPanel == focusedPanelHeaders, scr.insertMode)
 	bodyStyle := scr.body.Style(panelStyle, scr.focusedPanel == focusedPanelBody)
 
-	methodPanel := renderPanelWithTitle(methodStyle, "Method", focusedStyle.Render("> ")+scr.renderMethodSelector())
+	methodPanel := renderPanelWithTitle(methodStyle, "Method", focusedStyle.Render(focusMarker)+scr.renderMethodSelector())
 	doButton := scr.renderDoButton()
 	urlContentWidth := max(0, detailsWidth-lipgloss.Width(methodPanel)-lipgloss.Width(doButton)-inputStyle.GetHorizontalFrameSize())
 	urlStyle := scr.url.Style(inputStyle.Width(urlContentWidth), scr.focusedPanel == focusedPanelURL)
 	requestURL := scr.url.View(urlContentWidth, scr.focusedPanel == focusedPanelURL)
-	urlPanel := renderPanelWithTitle(urlStyle, "URL", focusedStyle.Render("> ")+requestURL)
+	urlPanel := renderPanelWithTitle(urlStyle, "URL", focusedStyle.Render(focusMarker)+requestURL)
 	requestLine := lipgloss.JoinHorizontal(lipgloss.Top, methodPanel, urlPanel, doButton)
 
 	headerColumnWidth := min(25, max(10, panelContentWidth/3))
@@ -70,7 +76,7 @@ func (scr Screen) View() string {
 	headers := renderPanelWithTitle(headersStyle, "Headers", scr.renderHeadersEditor(headerColumnWidth, valueColumnWidth))
 
 	usedHeight := lipgloss.Height(requestLine) + lipgloss.Height(headers)
-	remainingPanelHeight := max(2, screenHeight-usedHeight-inputStyle.GetVerticalFrameSize()*2)
+	remainingPanelHeight := max(2, contentHeight-usedHeight-inputStyle.GetVerticalFrameSize()*2)
 	bodyPanelHeight := max(1, remainingPanelHeight*2/5)
 	responsePanelHeight := max(1, remainingPanelHeight-bodyPanelHeight)
 	body := renderPanelWithTitle(
@@ -82,9 +88,73 @@ func (scr Screen) View() string {
 	response := renderPanelWithTitle(responseStyle.Height(responsePanelHeight), "Response", scr.renderResponse(panelContentWidth))
 	details := lipgloss.JoinVertical(lipgloss.Left, requestLine, headers, body, response)
 
-	mainView := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, details)
+	mainView := lipgloss.JoinVertical(
+		lipgloss.Left,
+		renderTopBar(screenWidth),
+		lipgloss.JoinHorizontal(lipgloss.Top, sidebar, details),
+	)
 	mainView = scr.newRequestPanel.Render(mainView, screenWidth)
 	return scr.commandPanel.Render(mainView, screenWidth)
+}
+
+func renderTopBar(width int) string {
+	const (
+		leftCap  = ""
+		rightCap = ""
+	)
+
+	left := "Req-Man"
+	right := ": to open commands"
+	if width <= 0 {
+		return ""
+	}
+	if width <= lipgloss.Width(leftCap)+lipgloss.Width(rightCap) {
+		return topBarStyle.Width(width).Render(padOrTruncate(left, width))
+	}
+
+	contentWidth := width - lipgloss.Width(leftCap) - lipgloss.Width(rightCap)
+	available := contentWidth - lipgloss.Width(left) - lipgloss.Width(right)
+	if available < 1 {
+		content := renderTopBarGradient(padOrTruncate(left, contentWidth), contentWidth, contentWidth)
+		return topBarCapStyle(topBarGradientColor(0, contentWidth)).Render(leftCap) + content + topBarCapStyle(topBarGradientColor(contentWidth-1, contentWidth)).Render(rightCap)
+	}
+
+	rightStart := lipgloss.Width(left) + available
+	content := renderTopBarGradient(left+strings.Repeat(" ", available)+right, contentWidth, rightStart)
+	return topBarCapStyle(topBarGradientColor(0, contentWidth)).Render(leftCap) + content + topBarCapStyle(topBarGradientColor(contentWidth-1, contentWidth)).Render(rightCap)
+}
+
+func renderTopBarGradient(text string, width int, whiteFromColumn int) string {
+	var builder strings.Builder
+	column := 0
+	for _, r := range padOrTruncate(text, width) {
+		color := topBarGradientColor(column, width)
+		style := topBarStyle.Background(color)
+		if column >= whiteFromColumn {
+			style = style.Foreground(lipgloss.Color("#FFFFFF"))
+		}
+		builder.WriteString(style.Render(string(r)))
+		column += lipgloss.Width(string(r))
+	}
+	return builder.String()
+}
+
+func topBarGradientColor(column int, width int) lipgloss.Color {
+	if width <= 1 {
+		return lipgloss.Color("#C084FC")
+	}
+
+	start := [3]int{0xC0, 0x84, 0xFC}
+	end := [3]int{0x6D, 0x28, 0xD9}
+	ratio := float64(column) / float64(width-1)
+	r := int(float64(start[0]) + (float64(end[0]-start[0]) * ratio))
+	g := int(float64(start[1]) + (float64(end[1]-start[1]) * ratio))
+	b := int(float64(start[2]) + (float64(end[2]-start[2]) * ratio))
+	return lipgloss.Color(fmt.Sprintf("#%02X%02X%02X", r, g, b))
+}
+
+func topBarCapStyle(color lipgloss.Color) lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(color)
 }
 
 func (scr Screen) renderResponse(widths ...int) string {
@@ -143,14 +213,14 @@ func (scr Screen) renderResponseTabs() string {
 	}
 	activeStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("205")).
+		Foreground(lipgloss.Color(focusedPurple)).
 		Border(activeBorder).
-		BorderForeground(lipgloss.Color("205")).
+		BorderForeground(lipgloss.Color(focusedPurple)).
 		Padding(0, 1)
 	inactiveStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("245")).
+		Foreground(lipgloss.Color(defaultPurple)).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("245")).
+		BorderForeground(lipgloss.Color(defaultPurple)).
 		Padding(0, 1)
 
 	renderedTabs := make([]string, 0, len(tabs))
@@ -170,7 +240,7 @@ func (scr Screen) renderSelectedResponseTabContent(width int) string {
 	content := scr.renderSelectedResponseTab(width)
 	outerWidth := max(4, width)
 	contentWidth := max(0, outerWidth-4)
-	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(focusedPurple))
 
 	lines := strings.Split(content, "\n")
 	for i, line := range lines {
@@ -348,7 +418,7 @@ func (scr Screen) renderDoButton() string {
 
 	panelStyle := inputStyle.Width(doButtonContentWidth + 2)
 	if scr.focusedPanel == focusedPanelDoButton {
-		panelStyle = panelStyle.BorderForeground(lipgloss.Color("99"))
+		panelStyle = panelStyle.BorderForeground(lipgloss.Color(focusedPurple))
 	}
 	if scr.requestInFlight {
 		panelStyle = panelStyle.BorderForeground(lipgloss.Color("#F1FA8C"))
@@ -397,7 +467,7 @@ func (scr Screen) renderHeadersEditor(headerColumnWidth, valueColumnWidth int) s
 
 		prefix := "  "
 		if selected {
-			prefix = focusedStyle.Render("> ")
+			prefix = focusedStyle.Render(focusMarker)
 		}
 		builder.WriteString("\n")
 		builder.WriteString(prefix)
@@ -417,7 +487,7 @@ func (scr Screen) renderMethodSelector() string {
 	}
 
 	method := request.MethodGet
-	if len(scr.requests) > 0 {
+	if scr.loadedRequests[scr.selectedRequestIndex] {
 		method = scr.requests[scr.selectedRequestIndex].Method
 	}
 
@@ -442,7 +512,7 @@ func styleForPanel(style lipgloss.Style, focused bool, insertMode bool) lipgloss
 	if insertMode {
 		return style.BorderForeground(lipgloss.Color("#50FA7B"))
 	}
-	return style.BorderForeground(lipgloss.Color("99"))
+	return style.BorderForeground(lipgloss.Color(focusedPurple))
 }
 
 func renderPanelWithTitle(style lipgloss.Style, title string, content string) string {

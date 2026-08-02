@@ -14,6 +14,10 @@ func NewRequestLoader(requestLister applicationrequest.Lister) RequestLoader {
 	return RequestLoader{requestLister: requestLister}
 }
 
-func (l RequestLoader) LoadFromDirectory(dir string) ([]request.Request, error) {
+func (l RequestLoader) List(dir string) ([]string, error) {
 	return l.requestLister.List(dir)
+}
+
+func (l RequestLoader) Load(path string) (request.Request, error) {
+	return l.requestLister.Load(path)
 }

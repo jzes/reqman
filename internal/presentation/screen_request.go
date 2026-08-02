@@ -11,24 +11,26 @@ import (
 )
 
 func (scr *Screen) selectNextRequest() {
-	if scr.selectedRequestIndex < len(scr.requests)-1 {
+	if scr.selectedRequestIndex < len(scr.requestPaths)-1 {
 		scr.selectedRequestIndex++
+		scr.ensureSelectedRequestVisible()
+		scr.clearResponse()
 		scr.showSelectedRequestURL()
 		scr.showSelectedRequestHeaders()
 		scr.showSelectedRequestBody()
 		scr.showSelectedRequestMethod()
-		scr.clearResponse()
 	}
 }
 
 func (scr *Screen) selectPreviousRequest() {
 	if scr.selectedRequestIndex > 0 {
 		scr.selectedRequestIndex--
+		scr.ensureSelectedRequestVisible()
+		scr.clearResponse()
 		scr.showSelectedRequestURL()
 		scr.showSelectedRequestHeaders()
 		scr.showSelectedRequestBody()
 		scr.showSelectedRequestMethod()
-		scr.clearResponse()
 	}
 }
 
@@ -51,8 +53,11 @@ func (scr *Screen) createRequest(name string) {
 		return
 	}
 
+	scr.requestPaths = append(scr.requestPaths, newRequest.Name)
 	scr.requests = append(scr.requests, newRequest)
-	scr.selectedRequestIndex = len(scr.requests) - 1
+	scr.loadedRequests[len(scr.requests)-1] = true
+	scr.selectedRequestIndex = len(scr.requestPaths) - 1
+	scr.ensureSelectedRequestVisible()
 	scr.showSelectedRequestURL()
 	scr.showSelectedRequestHeaders()
 	scr.showSelectedRequestBody()
@@ -72,7 +77,7 @@ func (scr *Screen) clearResponse() {
 }
 
 func (scr *Screen) showSelectedRequestURL() {
-	if len(scr.requests) == 0 {
+	if !scr.loadSelectedRequest() {
 		scr.url.SetValue("")
 		return
 	}
@@ -81,7 +86,7 @@ func (scr *Screen) showSelectedRequestURL() {
 }
 
 func (scr *Screen) showSelectedRequestHeaders() {
-	if len(scr.requests) == 0 {
+	if !scr.loadSelectedRequest() {
 		scr.headersEditor.setRows(nil)
 		return
 	}
@@ -90,7 +95,7 @@ func (scr *Screen) showSelectedRequestHeaders() {
 }
 
 func (scr *Screen) showSelectedRequestBody() {
-	if len(scr.requests) == 0 {
+	if !scr.loadSelectedRequest() {
 		scr.body.SetValue("")
 		return
 	}
@@ -99,7 +104,7 @@ func (scr *Screen) showSelectedRequestBody() {
 }
 
 func (scr *Screen) showSelectedRequestMethod() {
-	if len(scr.requests) == 0 {
+	if !scr.loadSelectedRequest() {
 		scr.methodList.Select(0)
 		return
 	}
@@ -114,7 +119,7 @@ func (scr *Screen) showSelectedRequestMethod() {
 }
 
 func (scr *Screen) setSelectedRequestMethod(method request.Method) {
-	if len(scr.requests) == 0 {
+	if !scr.loadSelectedRequest() {
 		return
 	}
 
@@ -122,7 +127,7 @@ func (scr *Screen) setSelectedRequestMethod(method request.Method) {
 }
 
 func (scr *Screen) syncBodyToSelectedRequest() {
-	if len(scr.requests) == 0 {
+	if !scr.loadSelectedRequest() {
 		return
 	}
 
@@ -130,7 +135,7 @@ func (scr *Screen) syncBodyToSelectedRequest() {
 }
 
 func (scr *Screen) syncURLToSelectedRequest() {
-	if len(scr.requests) == 0 {
+	if !scr.loadSelectedRequest() {
 		return
 	}
 
@@ -142,7 +147,7 @@ func (scr *Screen) syncURLToSelectedRequest() {
 }
 
 func (scr *Screen) writeSelectedRequest() {
-	if scr.requestWriter == nil || len(scr.requests) == 0 {
+	if scr.requestWriter == nil || !scr.loadSelectedRequest() {
 		return
 	}
 
@@ -150,7 +155,7 @@ func (scr *Screen) writeSelectedRequest() {
 }
 
 func (scr Screen) requestCommand() tea.Cmd {
-	if scr.requestDoer == nil || len(scr.requests) == 0 {
+	if scr.requestDoer == nil || !scr.loadSelectedRequest() {
 		return nil
 	}
 
@@ -162,7 +167,7 @@ func (scr Screen) requestCommand() tea.Cmd {
 }
 
 func (scr *Screen) syncHeadersToSelectedRequest() {
-	if len(scr.requests) == 0 {
+	if !scr.loadSelectedRequest() {
 		return
 	}
 
@@ -174,4 +179,67 @@ func (scr *Screen) syncHeadersToSelectedRequest() {
 		headers[row.key] = row.value
 	}
 	scr.requests[scr.selectedRequestIndex].Headers = headers
+}
+
+func (scr *Screen) loadSelectedRequest() bool {
+	if len(scr.requestPaths) == 0 || scr.selectedRequestIndex < 0 || scr.selectedRequestIndex >= len(scr.requestPaths) {
+		return false
+	}
+	if scr.loadedRequests[scr.selectedRequestIndex] {
+		return true
+	}
+
+	path := scr.requestPaths[scr.selectedRequestIndex]
+	if scr.requestLoader == nil {
+		scr.requests[scr.selectedRequestIndex] = request.Request{
+			Name:    filepath.Base(path),
+			Path:    path,
+			Method:  request.MethodGet,
+			Headers: make(map[string]string),
+		}
+		scr.loadedRequests[scr.selectedRequestIndex] = true
+		return true
+	}
+
+	loaded, err := scr.requestLoader.Load(path)
+	if err != nil {
+		scr.responseError = err.Error()
+		return false
+	}
+
+	scr.requests[scr.selectedRequestIndex] = loaded
+	scr.loadedRequests[scr.selectedRequestIndex] = true
+	scr.responseError = ""
+	return true
+}
+
+func (scr Screen) requestPanelContentHeight() int {
+	screenHeight := scr.height
+	if screenHeight == 0 {
+		screenHeight = defaultScreenHeight
+	}
+	return max(0, screenHeight-topBarHeight-sidebarStyle.GetVerticalFrameSize())
+}
+
+func (scr *Screen) ensureSelectedRequestVisible() {
+	visibleRequests := scr.requestPanelContentHeight()
+	if visibleRequests <= 0 || len(scr.requestPaths) == 0 {
+		scr.requestScrollOffset = 0
+		return
+	}
+
+	if scr.selectedRequestIndex < scr.requestScrollOffset {
+		scr.requestScrollOffset = scr.selectedRequestIndex
+	}
+	if scr.selectedRequestIndex >= scr.requestScrollOffset+visibleRequests {
+		scr.requestScrollOffset = scr.selectedRequestIndex - visibleRequests + 1
+	}
+
+	maxOffset := max(0, len(scr.requestPaths)-visibleRequests)
+	if scr.requestScrollOffset > maxOffset {
+		scr.requestScrollOffset = maxOffset
+	}
+	if scr.requestScrollOffset < 0 {
+		scr.requestScrollOffset = 0
+	}
 }
