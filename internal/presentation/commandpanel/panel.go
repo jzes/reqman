@@ -19,6 +19,7 @@ const (
 	ActionRun
 	ActionWriteRun
 	ActionWriteQuit
+	ActionHelp
 )
 
 type Panel struct {
@@ -64,6 +65,9 @@ func (p *Panel) HandleKey(msg tea.KeyMsg) Action {
 		case "❯wq":
 			p.Close()
 			return ActionWriteQuit
+		case "❯?":
+			p.Close()
+			return ActionHelp
 		default:
 			p.Close()
 		}
@@ -146,6 +150,7 @@ func renderCommandHelpTable(width int) string {
 		{"w", "Save request"},
 		{"r", "Run request"},
 		{"q", "Quit"},
+		{"?", "Open help"},
 		{"wr", "Save and run"},
 		{"wq", "Save and quit"},
 	}

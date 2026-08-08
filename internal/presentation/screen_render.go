@@ -10,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/jzes/reqman/internal/domain/request"
 )
@@ -94,7 +95,150 @@ func (scr Screen) View() string {
 		lipgloss.JoinHorizontal(lipgloss.Top, sidebar, details),
 	)
 	mainView = scr.newRequestPanel.Render(mainView, screenWidth)
+	mainView = scr.renderHelpOverlay(mainView, screenWidth, screenHeight)
 	return scr.commandPanel.Render(mainView, screenWidth)
+}
+
+func (scr Screen) renderHelpOverlay(baseView string, screenWidth int, screenHeight int) string {
+	if !scr.helpOpen {
+		return baseView
+	}
+
+	panelWidth := min(90, max(42, screenWidth*3/4))
+	panelHeight := min(max(12, screenHeight*2/3), max(12, screenHeight-4))
+	contentWidth := max(0, panelWidth-helpPanelStyle.GetHorizontalFrameSize())
+	contentHeight := max(1, panelHeight-helpPanelStyle.GetVerticalFrameSize())
+	content := renderHelpContent(contentWidth, contentHeight)
+	panel := helpPanelStyle.Width(contentWidth).Height(contentHeight).Render(content)
+	block := lipgloss.JoinVertical(lipgloss.Left, renderHelpTitleBar(lipgloss.Width(panel)), panel)
+	panelLines := strings.Split(block, "\n")
+	baseLines := strings.Split(baseView, "\n")
+	insertAt := max(1, (screenHeight-lipgloss.Height(block))/2)
+	leftOffset := max(0, (screenWidth-lipgloss.Width(block))/2)
+
+	for len(baseLines) < insertAt+len(panelLines) {
+		baseLines = append(baseLines, "")
+	}
+	for i, line := range panelLines {
+		baseLines[insertAt+i] = overlayLine(baseLines[insertAt+i], line, leftOffset)
+	}
+	return strings.Join(baseLines, "\n")
+}
+
+func renderHelpTitleBar(width int) string {
+	const (
+		leftCap  = ""
+		rightCap = ""
+	)
+
+	label := " Help "
+	contentWidth := width - lipgloss.Width(leftCap) - lipgloss.Width(rightCap)
+	if contentWidth <= 0 {
+		return ""
+	}
+	leftPadding := max(0, (contentWidth-lipgloss.Width(label))/2)
+	rightPadding := max(0, contentWidth-leftPadding-lipgloss.Width(label))
+	content := strings.Repeat(" ", leftPadding) + label + strings.Repeat(" ", rightPadding)
+	return helpTitleCapStyle(helpGradientColor(0, contentWidth)).Render(leftCap) + renderHelpTitleGradient(content, contentWidth) + helpTitleCapStyle(helpGradientColor(contentWidth-1, contentWidth)).Render(rightCap)
+}
+
+func renderHelpTitleGradient(text string, width int) string {
+	var builder strings.Builder
+	column := 0
+	for _, r := range padOrTruncate(text, width) {
+		builder.WriteString(helpTitleStyle(helpGradientColor(column, width)).Render(string(r)))
+		column += lipgloss.Width(string(r))
+	}
+	return builder.String()
+}
+
+func helpGradientColor(column int, width int) lipgloss.Color {
+	if width <= 1 {
+		return lipgloss.Color("#93C5FD")
+	}
+
+	start := [3]int{0x93, 0xC5, 0xFD}
+	end := [3]int{0x1D, 0x4E, 0xD8}
+	ratio := float64(column) / float64(width-1)
+	r := int(float64(start[0]) + (float64(end[0]-start[0]) * ratio))
+	g := int(float64(start[1]) + (float64(end[1]-start[1]) * ratio))
+	b := int(float64(start[2]) + (float64(end[2]-start[2]) * ratio))
+	return lipgloss.Color(fmt.Sprintf("#%02X%02X%02X", r, g, b))
+}
+
+func helpTitleStyle(color lipgloss.Color) lipgloss.Style {
+	return lipgloss.NewStyle().Background(color).Foreground(lipgloss.Color("#EFF6FF")).Bold(true)
+}
+
+func helpTitleCapStyle(color lipgloss.Color) lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(color)
+}
+
+func renderHelpContent(width int, height int) string {
+	sections := []string{
+		"Panels:",
+		"- Requests lists the .curl files loaded from the current directory.",
+		"- Method selects the HTTP verb for the active request.",
+		"- URL edits the request target.",
+		"- Headers edits key/value header rows.",
+		"- Body edits the request payload.",
+		"- Response shows status, body, headers, raw data, and request stats.",
+		"Navigation is modal. In normal mode, use h/j/k/l to move between panels, i to enter the current panel editing mode, and : to open commands. In text fields, the first i opens internal navigation and another i starts inserting text.",
+		"In editing mode, Esc returns to field navigation or leaves the panel editing mode. Headers uses Tab and Shift+Tab to switch between key and value. Response uses [ and ] to switch tabs.",
+		"Main commands: :w saves, :r runs, :wr saves and runs, :wq saves and quits, :q quits, and :? opens this help. Press Esc to close this panel.",
+	}
+
+	lines := make([]string, 0, height)
+	for i, section := range sections {
+		if i == 7 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, wrapText(section, max(1, width-4))...)
+	}
+
+	for len(lines) < height {
+		lines = append(lines, "")
+	}
+	if len(lines) > height {
+		lines = lines[:height]
+	}
+	for i, line := range lines {
+		lines[i] = "  " + padOrTruncate(line, max(0, width-4)) + "  "
+	}
+	return strings.Join(lines, "\n")
+}
+
+func wrapText(text string, width int) []string {
+	if width <= 0 {
+		return []string{""}
+	}
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return []string{""}
+	}
+
+	lines := []string{words[0]}
+	for _, word := range words[1:] {
+		current := lines[len(lines)-1]
+		if lipgloss.Width(current)+1+lipgloss.Width(word) <= width {
+			lines[len(lines)-1] = current + " " + word
+			continue
+		}
+		lines = append(lines, word)
+	}
+	return lines
+}
+
+func overlayLine(baseLine, overlay string, leftOffset int) string {
+	overlayWidth := lipgloss.Width(overlay)
+	left := ansi.Cut(baseLine, 0, leftOffset)
+	right := ansi.Cut(baseLine, leftOffset+overlayWidth, lipgloss.Width(baseLine))
+
+	if leftWidth := lipgloss.Width(left); leftWidth < leftOffset {
+		left += strings.Repeat(" ", leftOffset-leftWidth)
+	}
+
+	return left + overlay + right
 }
 
 func renderTopBar(width int) string {

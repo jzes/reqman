@@ -1229,6 +1229,60 @@ func TestCommandPanelRendersFloatingCommandInput(t *testing.T) {
 	if !strings.Contains(plainView, "wq") || !strings.Contains(plainView, "Save and quit") {
 		t.Fatalf("view does not contain write-quit command help: %q", plainView)
 	}
+	if !strings.Contains(plainView, "?") || !strings.Contains(plainView, "Open help") {
+		t.Fatalf("view does not contain help command: %q", plainView)
+	}
+}
+
+func TestCommandPanelHelpCommandOpensHelpPopup(t *testing.T) {
+	screen := newScreen([]request.Request{{Name: "Req"}})
+	screen.width = 80
+	screen.height = 24
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'?'}})
+	screen, cmd := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		t.Fatalf("command after :? = %p, want nil", cmd)
+	}
+	if screen.commandPanel.Open {
+		t.Fatal("command panel is open, want closed")
+	}
+	if !screen.helpOpen {
+		t.Fatal("help popup is closed, want open")
+	}
+
+	plainView := ansiSequencePattern.ReplaceAllString(screen.View(), "")
+	if !strings.Contains(plainView, "Help") {
+		t.Fatalf("view does not contain Help title: %q", plainView)
+	}
+	if !strings.Contains(plainView, "Panels:") || !strings.Contains(plainView, "- Requests lists the .curl files") {
+		t.Fatalf("view does not contain help content: %q", plainView)
+	}
+}
+
+func TestHelpPopupEscCloses(t *testing.T) {
+	screen := newScreen([]request.Request{{Name: "Req"}})
+	screen.helpOpen = true
+	screen.commandPanel.Open = false
+
+	screen, cmd := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEsc})
+	if cmd != nil {
+		t.Fatalf("command after help Esc = %p, want nil", cmd)
+	}
+	if screen.helpOpen {
+		t.Fatal("help popup is open, want closed")
+	}
+}
+
+func TestHelpTitleBarRendersOutsideBorderAsCapsule(t *testing.T) {
+	title := ansiSequencePattern.ReplaceAllString(renderHelpTitleBar(30), "")
+	if !strings.HasPrefix(title, "") || !strings.HasSuffix(title, "") {
+		t.Fatalf("help title bar is not a capsule: %q", title)
+	}
+	if !strings.Contains(title, "Help") {
+		t.Fatalf("help title bar does not contain title: %q", title)
+	}
 }
 
 func TestCommandPanelOverlayPreservesBaseLineOutsidePanel(t *testing.T) {

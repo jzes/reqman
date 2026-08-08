@@ -19,6 +19,12 @@ func (scr Screen) processKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if msg.Type == tea.KeyCtrlC {
 		return scr, tea.Quit
 	}
+	if scr.helpOpen {
+		if msg.Type == tea.KeyEsc {
+			scr.helpOpen = false
+		}
+		return scr, nil
+	}
 	if scr.commandPanel.Open {
 		action := scr.commandPanel.HandleKey(msg)
 		switch action {
@@ -44,6 +50,8 @@ func (scr Screen) processKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case presentationcommandpanel.ActionWriteQuit:
 			scr.writeSelectedRequest()
 			return scr, tea.Quit
+		case presentationcommandpanel.ActionHelp:
+			scr.helpOpen = true
 		}
 		return scr, nil
 	}

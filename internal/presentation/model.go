@@ -86,6 +86,9 @@ var (
 			Width(25).
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color(defaultPurple))
+	helpPanelStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#3B82F6"))
 )
 
 type Screen struct {
@@ -109,6 +112,7 @@ type Screen struct {
 	statusSpinner        spinner.Model
 	commandPanel         presentationcommandpanel.Panel
 	newRequestPanel      presentationcommandpanel.Panel
+	helpOpen             bool
 	response             request.Response
 	hasResponse          bool
 	responseError        string
