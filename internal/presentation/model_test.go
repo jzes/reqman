@@ -12,7 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/jzes/reqman/internal/domain/request"
-	presentationbody "github.com/jzes/reqman/internal/presentation/body"
+	"github.com/jzes/reqman/internal/presentation/jsoneditor"
 )
 
 func TestViewRendersBodyAndResponsePanels(t *testing.T) {
@@ -633,7 +633,7 @@ func TestBodyNormalModeIEntersNavigationMode(t *testing.T) {
 	if !screen.insertMode {
 		t.Fatal("insert mode is false, want true")
 	}
-	if screen.body.Mode() != presentationbody.NavigateMode {
+	if screen.body.Mode() != jsoneditor.NavigateMode {
 		t.Fatalf("body mode = %v, want navigate", screen.body.Mode())
 	}
 
@@ -648,7 +648,7 @@ func TestBodyNavigationModeIEntersTextInsertMode(t *testing.T) {
 	screen.focusedPanel = focusedPanelBody
 
 	screen = enterBodyTextInsertMode(t, screen)
-	if screen.body.Mode() != presentationbody.InsertMode {
+	if screen.body.Mode() != jsoneditor.InsertMode {
 		t.Fatalf("body mode = %v, want insert", screen.body.Mode())
 	}
 
@@ -706,7 +706,7 @@ func TestBodyEscTransitionsFromInsertToNavigateToPanel(t *testing.T) {
 	screen = enterBodyTextInsertMode(t, screen)
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEsc})
-	if screen.body.Mode() != presentationbody.NavigateMode {
+	if screen.body.Mode() != jsoneditor.NavigateMode {
 		t.Fatalf("body mode = %v, want navigate", screen.body.Mode())
 	}
 	if !screen.insertMode {
@@ -717,7 +717,7 @@ func TestBodyEscTransitionsFromInsertToNavigateToPanel(t *testing.T) {
 	}
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEsc})
-	if screen.body.Mode() != presentationbody.PanelMode {
+	if screen.body.Mode() != jsoneditor.PanelMode {
 		t.Fatalf("body mode = %v, want panel", screen.body.Mode())
 	}
 	if screen.insertMode {
@@ -870,7 +870,7 @@ func TestEscDoesNotSaveRequest(t *testing.T) {
 	if got := writer.calls; got != 0 {
 		t.Fatalf("write calls = %d, want 0", got)
 	}
-	if screen.body.Mode() != presentationbody.NavigateMode {
+	if screen.body.Mode() != jsoneditor.NavigateMode {
 		t.Fatalf("body mode = %v, want navigate", screen.body.Mode())
 	}
 

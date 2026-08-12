@@ -10,8 +10,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/jzes/reqman/internal/domain/request"
-	presentationbody "github.com/jzes/reqman/internal/presentation/body"
 	presentationcommandpanel "github.com/jzes/reqman/internal/presentation/commandpanel"
+	"github.com/jzes/reqman/internal/presentation/jsoneditor"
 	presentationrequest "github.com/jzes/reqman/internal/presentation/request"
 )
 
@@ -93,7 +93,7 @@ var (
 
 type Screen struct {
 	url                  urlPanel
-	body                 presentationbody.Panel
+	body                 jsoneditor.Panel
 	methodList           list.Model
 	methodSelectorOpen   bool
 	requestPaths         []string
@@ -127,7 +127,7 @@ func NewScreen(requestPaths []string, rw presentationrequest.RequestWriter, rd p
 		loadedRequests: make(map[int]bool),
 		headersEditor:  newHeadersEditor(),
 		url:            newURLPanel(),
-		body:           presentationbody.NewPanel(),
+		body:           jsoneditor.NewPanel(),
 		methodList:     newMethodList(),
 		statusSpinner:  spinner.New(spinner.WithSpinner(spinner.Line)),
 		requestWriter:  rw,

@@ -4,8 +4,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/jzes/reqman/internal/domain/request"
-	presentationbody "github.com/jzes/reqman/internal/presentation/body"
 	presentationcommandpanel "github.com/jzes/reqman/internal/presentation/commandpanel"
+	"github.com/jzes/reqman/internal/presentation/jsoneditor"
 )
 
 func (scr Screen) updateWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
@@ -83,11 +83,11 @@ func (scr Screen) processEscapeKey() (tea.Model, tea.Cmd) {
 	}
 	if scr.focusedPanel == focusedPanelBody {
 		result := scr.body.HandleEscape()
-		if result == presentationbody.EscapeIgnored {
+		if result == jsoneditor.EscapeIgnored {
 			return scr, nil
 		}
 		scr.syncBodyToSelectedRequest()
-		if result == presentationbody.EscapeToPanel {
+		if result == jsoneditor.EscapeToPanel {
 			scr.insertMode = false
 		}
 		return scr, nil
@@ -236,10 +236,10 @@ func (scr Screen) processInsertMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case focusedPanelBody:
 		switch scr.body.Mode() {
-		case presentationbody.NavigateMode:
+		case jsoneditor.NavigateMode:
 			cmd, _ := scr.body.UpdateNavigationMode(msg)
 			return scr, cmd
-		case presentationbody.InsertMode:
+		case jsoneditor.InsertMode:
 			cmd, changed := scr.body.UpdateEditor(msg)
 			if changed {
 				scr.syncBodyToSelectedRequest()
