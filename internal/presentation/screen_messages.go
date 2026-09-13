@@ -39,14 +39,18 @@ func (scr Screen) processKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case presentationcommandpanel.ActionWriteRun:
-			scr.writeSelectedRequest()
+			if !scr.writeSelectedRequest() {
+				return scr, nil
+			}
 			if !scr.requestInFlight {
 				if cmd := scr.startRequest(); cmd != nil {
 					return scr, tea.Batch(cmd, scr.statusSpinner.Tick)
 				}
 			}
 		case presentationcommandpanel.ActionWriteQuit:
-			scr.writeSelectedRequest()
+			if !scr.writeSelectedRequest() {
+				return scr, nil
+			}
 			return scr, tea.Quit
 		case presentationcommandpanel.ActionHelp:
 			scr.helpOpen = true

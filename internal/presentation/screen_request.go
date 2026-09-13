@@ -2,6 +2,7 @@ package presentation
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -51,6 +52,7 @@ func (scr *Screen) createRequest(name string) {
 		Headers: make(map[string]string),
 	}
 	if err := scr.requestWriter.WriteToFile(newRequest); err != nil {
+		scr.showResponseError(fmt.Sprintf("Failed to create request: %v", err))
 		return
 	}
 
@@ -142,17 +144,24 @@ func (scr *Screen) syncURLToSelectedRequest() {
 
 	url, err := request.NewURL(scr.url.Value())
 	if err != nil {
+		scr.showResponseError(fmt.Sprintf("Invalid URL: %v", err))
 		return
 	}
 	scr.requests[scr.selectedRequestIndex].URL = url
+	scr.responseError = ""
 }
 
-func (scr *Screen) writeSelectedRequest() {
+func (scr *Screen) writeSelectedRequest() bool {
 	if scr.requestWriter == nil || !scr.loadSelectedRequest() {
-		return
+		return false
 	}
 
-	_ = scr.requestWriter.WriteToFile(scr.requests[scr.selectedRequestIndex])
+	if err := scr.requestWriter.WriteToFile(scr.requests[scr.selectedRequestIndex]); err != nil {
+		scr.showResponseError(fmt.Sprintf("Failed to save request: %v", err))
+		return false
+	}
+	scr.responseError = ""
+	return true
 }
 
 func (scr *Screen) startRequest() tea.Cmd {
@@ -182,6 +191,12 @@ func (scr *Screen) cancelRequest() {
 	scr.requestInFlight = false
 	scr.inFlightRequestID = 0
 	scr.responseError = "Request canceled"
+	scr.hasResponse = false
+	scr.response = request.Response{}
+}
+
+func (scr *Screen) showResponseError(message string) {
+	scr.responseError = message
 	scr.hasResponse = false
 	scr.response = request.Response{}
 }
