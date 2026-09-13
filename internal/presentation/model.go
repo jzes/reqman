@@ -2,6 +2,7 @@
 package presentation
 
 import (
+	"context"
 	"regexp"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -117,6 +118,9 @@ type Screen struct {
 	hasResponse          bool
 	responseError        string
 	requestInFlight      bool
+	requestCancel        context.CancelFunc
+	nextRequestID        int
+	inFlightRequestID    int
 	selectedResponseTab  responseTab
 }
 
@@ -151,7 +155,12 @@ func (m Screen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		return m.updateWindowSize(msg)
 	case presentationrequest.RequestResultMessage:
+		if msg.RequestID != 0 && msg.RequestID != m.inFlightRequestID {
+			return m, nil
+		}
 		msg.UpdateTarget(&m)
+		m.requestCancel = nil
+		m.inFlightRequestID = 0
 		return m, nil
 	case spinner.TickMsg:
 		if !m.requestInFlight {
