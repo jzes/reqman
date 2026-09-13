@@ -1,11 +1,13 @@
 package requesthttp
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jzes/reqman/internal/domain/request"
 )
@@ -25,7 +27,7 @@ func TestClientDoAcceptsURLWithoutScheme(t *testing.T) {
 	}
 
 	client := NewClient()
-	response, err := client.Do(request.Request{
+	response, err := client.Do(context.Background(), request.Request{
 		URL:    url,
 		Method: request.MethodGet,
 	})
@@ -67,7 +69,7 @@ func TestClientDo(t *testing.T) {
 	}
 
 	client := NewClient()
-	response, err := client.Do(request.Request{
+	response, err := client.Do(context.Background(), request.Request{
 		URL:     url,
 		Method:  request.MethodPost,
 		Headers: map[string]string{"X-Test": "ok"},
@@ -100,5 +102,75 @@ func TestClientDo(t *testing.T) {
 	}
 	if got := response.URL.String(); got != server.URL {
 		t.Fatalf("response url = %q, want %q", got, server.URL)
+	}
+}
+
+func TestNewClientSetsDefaultTimeout(t *testing.T) {
+	client := NewClient()
+	if client.httpClient == nil {
+		t.Fatal("http client is nil")
+	}
+	if client.httpClient.Timeout != defaultRequestTimeout {
+		t.Fatalf("timeout = %s, want %s", client.httpClient.Timeout, defaultRequestTimeout)
+	}
+}
+
+func TestClientDoWorksWithoutConstructor(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	url, err := request.NewURL(server.URL)
+	if err != nil {
+		t.Fatalf("new url: %v", err)
+	}
+
+	client := Client{}
+	response, err := client.Do(context.Background(), request.Request{URL: url, Method: request.MethodGet})
+	if err != nil {
+		t.Fatalf("do request: %v", err)
+	}
+	if response.StatusCode != http.StatusNoContent {
+		t.Fatalf("status code = %d, want %d", response.StatusCode, http.StatusNoContent)
+	}
+}
+
+func TestClientDoHonorsContextCancellation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+
+	url, err := request.NewURL(server.URL)
+	if err != nil {
+		t.Fatalf("new url: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	client := NewClient()
+	_, err = client.Do(ctx, request.Request{URL: url, Method: request.MethodGet})
+	if err == nil {
+		t.Fatal("do request error is nil, want cancellation error")
+	}
+}
+
+func TestClientDoTimesOut(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(50 * time.Millisecond)
+	}))
+	defer server.Close()
+
+	url, err := request.NewURL(server.URL)
+	if err != nil {
+		t.Fatalf("new url: %v", err)
+	}
+
+	client := Client{httpClient: &http.Client{Timeout: time.Millisecond}}
+	_, err = client.Do(context.Background(), request.Request{URL: url, Method: request.MethodGet})
+	if err == nil {
+		t.Fatal("do request error is nil, want timeout error")
 	}
 }

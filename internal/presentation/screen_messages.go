@@ -34,16 +34,14 @@ func (scr Screen) processKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			scr.writeSelectedRequest()
 		case presentationcommandpanel.ActionRun:
 			if !scr.requestInFlight {
-				if cmd := scr.requestCommand(); cmd != nil {
-					scr.requestInFlight = true
+				if cmd := scr.startRequest(); cmd != nil {
 					return scr, tea.Batch(cmd, scr.statusSpinner.Tick)
 				}
 			}
 		case presentationcommandpanel.ActionWriteRun:
 			scr.writeSelectedRequest()
 			if !scr.requestInFlight {
-				if cmd := scr.requestCommand(); cmd != nil {
-					scr.requestInFlight = true
+				if cmd := scr.startRequest(); cmd != nil {
 					return scr, tea.Batch(cmd, scr.statusSpinner.Tick)
 				}
 			}
@@ -57,6 +55,10 @@ func (scr Screen) processKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if scr.newRequestPanel.Open {
 		return scr.processNewRequestPanel(msg)
+	}
+	if msg.Type == tea.KeyEsc && scr.requestInFlight {
+		scr.cancelRequest()
+		return scr, nil
 	}
 	if msg.Type == tea.KeyEsc {
 		return scr.processEscapeKey()
@@ -115,6 +117,11 @@ func (scr Screen) processNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if msg.Type != tea.KeyRunes || len(msg.Runes) != 1 {
 		if msg.Type == tea.KeyEnter || msg.Type == tea.KeySpace {
 			scr.methodSelectorOpen = scr.focusedPanel == focusedPanelMethod
+			if scr.focusedPanel == focusedPanelDoButton && !scr.requestInFlight {
+				if cmd := scr.startRequest(); cmd != nil {
+					return scr, tea.Batch(cmd, scr.statusSpinner.Tick)
+				}
+			}
 		}
 		return scr, nil
 	}

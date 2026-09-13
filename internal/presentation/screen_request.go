@@ -1,6 +1,7 @@
 package presentation
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 
@@ -154,16 +155,35 @@ func (scr *Screen) writeSelectedRequest() {
 	_ = scr.requestWriter.WriteToFile(scr.requests[scr.selectedRequestIndex])
 }
 
-func (scr Screen) requestCommand() tea.Cmd {
+func (scr *Screen) startRequest() tea.Cmd {
 	if scr.requestDoer == nil || !scr.loadSelectedRequest() {
 		return nil
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	scr.requestCancel = cancel
+	scr.nextRequestID++
+	scr.inFlightRequestID = scr.nextRequestID
+	scr.requestInFlight = true
+
 	requestToDo := scr.requests[scr.selectedRequestIndex]
+	requestID := scr.inFlightRequestID
 	return func() tea.Msg {
-		response, err := scr.requestDoer.Do(requestToDo)
-		return presentationRequest.RequestResultMessage{Response: response, Err: err}
+		response, err := scr.requestDoer.Do(ctx, requestToDo)
+		return presentationRequest.RequestResultMessage{RequestID: requestID, Response: response, Err: err}
 	}
+}
+
+func (scr *Screen) cancelRequest() {
+	if scr.requestCancel != nil {
+		scr.requestCancel()
+	}
+	scr.requestCancel = nil
+	scr.requestInFlight = false
+	scr.inFlightRequestID = 0
+	scr.responseError = "Request canceled"
+	scr.hasResponse = false
+	scr.response = request.Response{}
 }
 
 func (scr *Screen) syncHeadersToSelectedRequest() {

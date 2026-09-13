@@ -1,6 +1,7 @@
 package requesthttp
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"strings"
@@ -10,18 +11,22 @@ import (
 	"github.com/jzes/reqman/internal/domain/request"
 )
 
-type Client struct{}
+const defaultRequestTimeout = 30 * time.Second
+
+type Client struct {
+	httpClient *http.Client
+}
 
 var _ applicationrequest.Doer = Client{}
 
 func NewClient() Client {
-	return Client{}
+	return Client{httpClient: &http.Client{Timeout: defaultRequestTimeout}}
 }
 
-func (c Client) Do(req request.Request) (request.Response, error) {
+func (c Client) Do(ctx context.Context, req request.Request) (request.Response, error) {
 	start := time.Now()
 	body := strings.NewReader(req.Body)
-	httpRequest, err := http.NewRequest(string(req.Method), requestURL(req), body)
+	httpRequest, err := http.NewRequestWithContext(ctx, string(req.Method), requestURL(req), body)
 	if err != nil {
 		return request.Response{}, err
 	}
@@ -30,7 +35,12 @@ func (c Client) Do(req request.Request) (request.Response, error) {
 		httpRequest.Header.Set(key, value)
 	}
 
-	response, err := http.DefaultClient.Do(httpRequest)
+	httpClient := c.httpClient
+	if httpClient == nil {
+		httpClient = &http.Client{Timeout: defaultRequestTimeout}
+	}
+
+	response, err := httpClient.Do(httpRequest)
 	if err != nil {
 		return request.Response{}, err
 	}

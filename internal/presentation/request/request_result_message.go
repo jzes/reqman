@@ -12,8 +12,9 @@ type resultTarget interface {
 }
 
 type RequestResultMessage struct {
-	Response domainrequest.Response
-	Err      error
+	RequestID int
+	Response  domainrequest.Response
+	Err       error
 }
 
 func (msg RequestResultMessage) UpdateTarget(target resultTarget) {

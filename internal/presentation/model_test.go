@@ -1,6 +1,7 @@
 package presentation
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strings"
@@ -1051,9 +1052,11 @@ type fakeDoer struct {
 	calls    int
 	response request.Response
 	err      error
+	ctx      context.Context
 }
 
-func (d *fakeDoer) Do(req request.Request) (request.Response, error) {
+func (d *fakeDoer) Do(ctx context.Context, req request.Request) (request.Response, error) {
+	d.ctx = ctx
 	d.request = req
 	d.calls++
 	return d.response, d.err
@@ -1185,20 +1188,50 @@ func TestDoButtonDoesNotEnterInsertMode(t *testing.T) {
 	}
 }
 
-func TestDoButtonEnterDoesNotRunRequest(t *testing.T) {
+func TestDoButtonEnterRunsRequest(t *testing.T) {
 	doer := &fakeDoer{response: request.Response{Status: "200 OK"}}
 	screen := newScreenWithDeps([]request.Request{{Name: "req.curl"}}, nil, doer)
 	screen.focusedPanel = focusedPanelDoButton
 
 	updated, cmd := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd != nil {
-		t.Fatalf("command after enter on do panel = %p, want nil", cmd)
+	if cmd == nil {
+		t.Fatal("command after enter on do panel is nil")
 	}
+	if !updated.requestInFlight {
+		t.Fatal("request in flight is false, want true")
+	}
+
+	updated, _ = updateScreen(t, updated, firstCommandMessage(t, cmd))
+	if got := doer.calls; got != 1 {
+		t.Fatalf("do calls = %d, want 1", got)
+	}
+}
+
+func TestEscCancelsInFlightRequest(t *testing.T) {
+	doer := &fakeDoer{}
+	screen := newScreenWithDeps([]request.Request{{Name: "req.curl"}}, nil, doer)
+	screen.focusedPanel = focusedPanelDoButton
+
+	updated, cmd := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("do command is nil")
+	}
+	updated, _ = updateScreen(t, updated, tea.KeyMsg{Type: tea.KeyEsc})
+
 	if updated.requestInFlight {
 		t.Fatal("request in flight is true, want false")
 	}
-	if got := doer.calls; got != 0 {
-		t.Fatalf("do calls = %d, want 0", got)
+	if got := updated.responseError; got != "Request canceled" {
+		t.Fatalf("response error = %q, want canceled", got)
+	}
+	updated, _ = updateScreen(t, updated, firstCommandMessage(t, cmd))
+	if doer.ctx == nil {
+		t.Fatal("doer context is nil")
+	}
+	select {
+	case <-doer.ctx.Done():
+	default:
+		t.Fatal("request context was not canceled")
 	}
 }
 
