@@ -2,6 +2,7 @@ package presentation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -374,6 +375,25 @@ func TestURLEditorSyncsURLToSelectedRequest(t *testing.T) {
 	}
 	if got := screen.requests[0].URL.String(); got != "localhost/books" {
 		t.Fatalf("request URL = %q, want localhost/books", got)
+	}
+}
+
+func TestURLEditorShowsInvalidURLError(t *testing.T) {
+	parsedURL, err := request.NewURL("http://localhost/books")
+	if err != nil {
+		t.Fatalf("NewURL() error = %v", err)
+	}
+	screen := newScreen([]request.Request{{URL: parsedURL}})
+	screen.focusedPanel = focusedPanelURL
+
+	screen.url.SetValue("http://[::1")
+	screen.syncURLToSelectedRequest()
+
+	if got := screen.requests[0].URL.String(); got != "http://localhost/books" {
+		t.Fatalf("request URL = %q, want previous URL", got)
+	}
+	if got := screen.renderResponse(); !strings.Contains(got, "Invalid URL:") {
+		t.Fatalf("response view = %q, want invalid URL error", got)
 	}
 }
 
@@ -907,6 +927,32 @@ func TestCommandPanelWriteCommandSavesRequest(t *testing.T) {
 	}
 }
 
+func TestCommandPanelWriteCommandShowsSaveError(t *testing.T) {
+	parsedURL, err := request.NewURL("http://localhost/books")
+	if err != nil {
+		t.Fatalf("NewURL() error = %v", err)
+	}
+
+	writer := &fakeWriter{err: errors.New("disk full")}
+	screen := newScreenWithDeps([]request.Request{{Name: "req.curl", Path: "req.curl", URL: parsedURL}}, writer, nil)
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'w'}})
+	screen, cmd := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		t.Fatalf("command after failed ❯w = %p, want nil", cmd)
+	}
+	if got := writer.calls; got != 1 {
+		t.Fatalf("write calls = %d, want 1", got)
+	}
+	if got := screen.renderResponse(); !strings.Contains(got, "Failed to save request: disk full") {
+		t.Fatalf("response view = %q, want save error", got)
+	}
+	if screen.hasResponse {
+		t.Fatal("hasResponse is true, want false")
+	}
+}
+
 func TestCommandPanelWriteRunCommandSavesAndRunsRequest(t *testing.T) {
 	parsedURL, err := request.NewURL("http://localhost/books")
 	if err != nil {
@@ -945,6 +991,36 @@ func TestCommandPanelWriteRunCommandSavesAndRunsRequest(t *testing.T) {
 	}
 }
 
+func TestCommandPanelWriteRunDoesNotRunWhenSaveFails(t *testing.T) {
+	parsedURL, err := request.NewURL("http://localhost/books")
+	if err != nil {
+		t.Fatalf("NewURL() error = %v", err)
+	}
+
+	writer := &fakeWriter{err: errors.New("permission denied")}
+	doer := &fakeDoer{response: request.Response{Status: "200 OK"}}
+	screen := newScreenWithDeps([]request.Request{{Name: "req.curl", Path: "req.curl", URL: parsedURL}}, writer, doer)
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("wr")})
+	screen, cmd := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		t.Fatalf("command after failed ❯wr = %p, want nil", cmd)
+	}
+	if got := writer.calls; got != 1 {
+		t.Fatalf("write calls = %d, want 1", got)
+	}
+	if got := doer.calls; got != 0 {
+		t.Fatalf("do calls = %d, want 0", got)
+	}
+	if screen.requestInFlight {
+		t.Fatal("request in flight is true, want false")
+	}
+	if got := screen.renderResponse(); !strings.Contains(got, "Failed to save request: permission denied") {
+		t.Fatalf("response view = %q, want save error", got)
+	}
+}
+
 func TestCommandPanelWriteQuitCommandSavesAndQuits(t *testing.T) {
 	parsedURL, err := request.NewURL("http://localhost/books")
 	if err != nil {
@@ -972,6 +1048,29 @@ func TestCommandPanelWriteQuitCommandSavesAndQuits(t *testing.T) {
 	}
 	if screen.commandPanel.Open {
 		t.Fatal("command panel is open, want closed")
+	}
+}
+
+func TestCommandPanelWriteQuitDoesNotQuitWhenSaveFails(t *testing.T) {
+	parsedURL, err := request.NewURL("http://localhost/books")
+	if err != nil {
+		t.Fatalf("NewURL() error = %v", err)
+	}
+
+	writer := &fakeWriter{err: errors.New("read-only filesystem")}
+	screen := newScreenWithDeps([]request.Request{{Name: "req.curl", Path: "req.curl", URL: parsedURL}}, writer, nil)
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("wq")})
+	screen, cmd := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		t.Fatalf("command after failed ❯wq = %p, want nil", cmd)
+	}
+	if got := writer.calls; got != 1 {
+		t.Fatalf("write calls = %d, want 1", got)
+	}
+	if got := screen.renderResponse(); !strings.Contains(got, "Failed to save request: read-only filesystem") {
+		t.Fatalf("response view = %q, want save error", got)
 	}
 }
 
@@ -1013,6 +1112,26 @@ func TestNewRequestFlowCreatesFileSelectsRequestAndEditsURL(t *testing.T) {
 	}
 }
 
+func TestNewRequestFlowShowsCreateError(t *testing.T) {
+	writer := &fakeWriter{err: errors.New("cannot create file")}
+	screen := newScreenWithDeps(nil, writer, nil)
+	screen.focusedPanel = focusedPanelRequests
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Books")})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEnter})
+
+	if got := writer.calls; got != 1 {
+		t.Fatalf("write calls = %d, want 1", got)
+	}
+	if len(screen.requests) != 0 {
+		t.Fatalf("requests len = %d, want 0", len(screen.requests))
+	}
+	if got := screen.renderResponse(); !strings.Contains(got, "Failed to create request: cannot create file") {
+		t.Fatalf("response view = %q, want create error", got)
+	}
+}
+
 func TestNewRequestFlowEscCancelsCreation(t *testing.T) {
 	writer := &fakeWriter{}
 	screen := newScreenWithDeps(nil, writer, nil)
@@ -1039,12 +1158,13 @@ func TestNewRequestFlowEscCancelsCreation(t *testing.T) {
 type fakeWriter struct {
 	request request.Request
 	calls   int
+	err     error
 }
 
 func (w *fakeWriter) WriteToFile(req request.Request) error {
 	w.request = req
 	w.calls++
-	return nil
+	return w.err
 }
 
 type fakeDoer struct {
