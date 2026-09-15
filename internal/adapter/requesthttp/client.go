@@ -31,8 +31,10 @@ func (c Client) Do(ctx context.Context, req request.Request) (request.Response, 
 		return request.Response{}, err
 	}
 
-	for key, value := range req.Headers {
-		httpRequest.Header.Set(key, value)
+	for key, values := range req.Headers {
+		for _, value := range values {
+			httpRequest.Header.Add(key, value)
+		}
 	}
 
 	httpClient := c.httpClient

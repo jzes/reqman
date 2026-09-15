@@ -1,6 +1,7 @@
 package requestfile
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/jzes/reqman/internal/domain/request"
@@ -45,9 +46,7 @@ func TestParseCurlRequestWithMethodHeaderAndJSONBody(t *testing.T) {
 	if parsed.Method != request.MethodPost {
 		t.Fatalf("Method = %q, want %q", parsed.Method, request.MethodPost)
 	}
-	if parsed.Headers["Content-Type"] != "application/json" {
-		t.Fatalf("Content-Type = %q, want %q", parsed.Headers["Content-Type"], "application/json")
-	}
+	assertHeaderValues(t, parsed.Headers, "Content-Type", []string{"application/json"})
 	if parsed.Body != `{"name":"x"}` {
 		t.Fatalf("Body = %q, want %q", parsed.Body, `{"name":"x"}`)
 	}
@@ -76,9 +75,7 @@ func TestParseCurlRequestWithJSONFlagAddsContentType(t *testing.T) {
 	if parsed.Method != request.MethodPost {
 		t.Fatalf("Method = %q, want %q", parsed.Method, request.MethodPost)
 	}
-	if parsed.Headers["Content-Type"] != "application/json" {
-		t.Fatalf("Content-Type = %q, want %q", parsed.Headers["Content-Type"], "application/json")
-	}
+	assertHeaderValues(t, parsed.Headers, "Content-Type", []string{"application/json"})
 	if parsed.Body != `{"name":"x"}` {
 		t.Fatalf("Body = %q, want %q", parsed.Body, `{"name":"x"}`)
 	}
@@ -107,12 +104,17 @@ func TestParseCurlRequestSupportsCompactAndEqualFlags(t *testing.T) {
 	if parsed.Method != request.MethodPost {
 		t.Fatalf("Method = %q, want %q", parsed.Method, request.MethodPost)
 	}
-	if parsed.Headers["X-Test"] != "yes" {
-		t.Fatalf("X-Test = %q, want %q", parsed.Headers["X-Test"], "yes")
+	assertHeaderValues(t, parsed.Headers, "X-Test", []string{"yes"})
+	assertHeaderValues(t, parsed.Headers, "Content-Type", []string{"application/json"})
+}
+
+func TestParseCurlRequestPreservesRepeatedHeaders(t *testing.T) {
+	parsed, err := parseCurlRequest("req.curl", "req.curl", []byte(`curl -H 'Accept: application/json' -H 'Accept: text/plain' http://localhost/books`))
+	if err != nil {
+		t.Fatalf("parseCurlRequest() error = %v", err)
 	}
-	if parsed.Headers["Content-Type"] != "application/json" {
-		t.Fatalf("Content-Type = %q, want %q", parsed.Headers["Content-Type"], "application/json")
-	}
+
+	assertHeaderValues(t, parsed.Headers, "Accept", []string{"application/json", "text/plain"})
 }
 
 func TestParseCurlRequestSkipsUnknownFlagWithValue(t *testing.T) {
@@ -169,8 +171,13 @@ func TestParseCurlRequestAllowsEmptyURL(t *testing.T) {
 	if got := parsed.URL.String(); got != "" {
 		t.Fatalf("URL = %q, want empty", got)
 	}
-	if got := parsed.Headers["Accept"]; got != "application/json" {
-		t.Fatalf("Accept header = %q, want application/json", got)
+	assertHeaderValues(t, parsed.Headers, "Accept", []string{"application/json"})
+}
+
+func assertHeaderValues(t *testing.T, headers map[string][]string, name string, want []string) {
+	t.Helper()
+	if got := headers[name]; !reflect.DeepEqual(got, want) {
+		t.Fatalf("%s header = %v, want %v", name, got, want)
 	}
 }
 

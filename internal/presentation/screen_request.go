@@ -49,7 +49,7 @@ func (scr *Screen) createRequest(name string) {
 	newRequest := request.Request{
 		Name:    name,
 		Method:  request.MethodGet,
-		Headers: make(map[string]string),
+		Headers: make(map[string][]string),
 	}
 	if err := scr.requestWriter.WriteToFile(newRequest); err != nil {
 		scr.showResponseError(fmt.Sprintf("Failed to create request: %v", err))
@@ -206,12 +206,12 @@ func (scr *Screen) syncHeadersToSelectedRequest() {
 		return
 	}
 
-	headers := make(map[string]string)
+	headers := make(map[string][]string)
 	for _, row := range scr.headersEditor.rows {
 		if row.key == "" {
 			continue
 		}
-		headers[row.key] = row.value
+		headers[row.key] = append(headers[row.key], row.value)
 	}
 	scr.requests[scr.selectedRequestIndex].Headers = headers
 }
@@ -230,7 +230,7 @@ func (scr *Screen) loadSelectedRequest() bool {
 			Name:    filepath.Base(path),
 			Path:    path,
 			Method:  request.MethodGet,
-			Headers: make(map[string]string),
+			Headers: make(map[string][]string),
 		}
 		scr.loadedRequests[scr.selectedRequestIndex] = true
 		return true

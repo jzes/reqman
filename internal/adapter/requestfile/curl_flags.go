@@ -93,23 +93,24 @@ func parseMethod(value string) (request.Method, error) {
 	}
 }
 
-func addHeader(headers map[string]string, value string) {
+func addHeader(headers map[string][]string, value string) {
 	name, headerValue, ok := strings.Cut(value, ":")
 	if !ok {
 		return
 	}
 
-	headers[strings.TrimSpace(name)] = strings.TrimSpace(headerValue)
+	name = strings.TrimSpace(name)
+	headers[name] = append(headers[name], strings.TrimSpace(headerValue))
 }
 
-func addHeaderIfMissing(headers map[string]string, name, value string) {
+func addHeaderIfMissing(headers map[string][]string, name, value string) {
 	for existingName := range headers {
 		if strings.EqualFold(existingName, name) {
 			return
 		}
 	}
 
-	headers[name] = value
+	headers[name] = []string{value}
 }
 
 func isDataFlag(arg string) bool {

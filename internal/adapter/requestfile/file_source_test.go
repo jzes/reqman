@@ -21,9 +21,9 @@ func TestFileSourceWritesRequestToFile(t *testing.T) {
 		Path:   path,
 		URL:    parsedURL,
 		Method: request.MethodPost,
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-			"X-Test":       "yes",
+		Headers: map[string][]string{
+			"Content-Type": {"application/json"},
+			"X-Test":       {"yes"},
 		},
 		Body: `{"name":"x"}`,
 	})
@@ -55,8 +55,8 @@ func TestFileSourceWritesMultilineJSONBodyRoundTrip(t *testing.T) {
 		Path:   path,
 		URL:    parsedURL,
 		Method: request.MethodPost,
-		Headers: map[string]string{
-			"Content-Type": "application/json",
+		Headers: map[string][]string{
+			"Content-Type": {"application/json"},
 		},
 		Body: body,
 	})
@@ -96,7 +96,7 @@ func TestFileSourceWritesEmptyRequestRoundTrip(t *testing.T) {
 		Name:    "empty.curl",
 		Path:    path,
 		Method:  request.MethodGet,
-		Headers: map[string]string{},
+		Headers: map[string][]string{},
 	})
 	if err != nil {
 		t.Fatalf("Write() error = %v", err)
@@ -124,6 +124,36 @@ func TestFileSourceWritesEmptyRequestRoundTrip(t *testing.T) {
 	}
 	if got := loaded.Method; got != request.MethodGet {
 		t.Fatalf("Method = %q, want GET", got)
+	}
+}
+
+func TestFileSourceWritesRepeatedHeaders(t *testing.T) {
+	parsedURL, err := request.NewURL("http://localhost/books")
+	if err != nil {
+		t.Fatalf("NewURL() error = %v", err)
+	}
+
+	path := filepath.Join(t.TempDir(), "req.curl")
+	source := NewFileSource(nil)
+	err = source.Write(request.Request{
+		Path:   path,
+		URL:    parsedURL,
+		Method: request.MethodGet,
+		Headers: map[string][]string{
+			"Accept": {"application/json", "text/plain"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	want := `'curl' '-X' 'GET' '-H' 'Accept: application/json' '-H' 'Accept: text/plain' 'http://localhost/books'`
+	if string(content) != want {
+		t.Fatalf("content = %q, want %q", string(content), want)
 	}
 }
 

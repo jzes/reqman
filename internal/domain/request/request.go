@@ -57,7 +57,7 @@ type Request struct {
 	Path    string
 	URL     URL
 	Method  Method
-	Headers map[string]string
+	Headers map[string][]string
 	Body    string
 }
 

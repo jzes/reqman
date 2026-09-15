@@ -262,21 +262,26 @@ func TestResponseInsertModeRendersGreenBorder(t *testing.T) {
 }
 
 func TestHeadersFromMapSortsRows(t *testing.T) {
-	rows := headersFromMap(map[string]string{
-		"X-Zeta":  "last",
-		"Accept":  "application/json",
-		"Content": "text/plain",
+	rows := headersFromMap(map[string][]string{
+		"X-Zeta":  {"last"},
+		"Accept":  {"application/json", "text/plain"},
+		"Content": {"text/plain"},
 	})
 
-	got := []string{rows[0].key, rows[1].key, rows[2].key}
-	want := []string{"Accept", "Content", "X-Zeta"}
+	got := []headerRow{rows[0], rows[1], rows[2], rows[3]}
+	want := []headerRow{
+		{key: "Accept", value: "application/json"},
+		{key: "Accept", value: "text/plain"},
+		{key: "Content", value: "text/plain"},
+		{key: "X-Zeta", value: "last"},
+	}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("headers order = %v, want %v", got, want)
+		t.Fatalf("header rows = %v, want %v", got, want)
 	}
 }
 
 func TestHeadersEditorCreatesFirstHeader(t *testing.T) {
-	screen := newScreen([]request.Request{{Headers: map[string]string{}}})
+	screen := newScreen([]request.Request{{Headers: map[string][]string{}}})
 	screen.focusedPanel = focusedPanelHeaders
 
 	screen = enterHeaderInsertMode(t, screen)
@@ -284,13 +289,13 @@ func TestHeadersEditorCreatesFirstHeader(t *testing.T) {
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyTab})
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("application/json")})
 
-	if got := screen.requests[0].Headers["Accept"]; got != "application/json" {
-		t.Fatalf("Accept header = %q, want application/json", got)
+	if got := screen.requests[0].Headers["Accept"]; !reflect.DeepEqual(got, []string{"application/json"}) {
+		t.Fatalf("Accept header = %v, want [application/json]", got)
 	}
 }
 
 func TestHeadersEditorEditsKeyAndValue(t *testing.T) {
-	screen := newScreen([]request.Request{{Headers: map[string]string{"Accept": "text/plain"}}})
+	screen := newScreen([]request.Request{{Headers: map[string][]string{"Accept": {"text/plain"}}}})
 	screen.focusedPanel = focusedPanelHeaders
 
 	screen = enterHeaderInsertMode(t, screen)
@@ -307,15 +312,15 @@ func TestHeadersEditorEditsKeyAndValue(t *testing.T) {
 	if _, ok := screen.requests[0].Headers["Accept"]; ok {
 		t.Fatal("old Accept key still exists")
 	}
-	if got := screen.requests[0].Headers["Content-Type"]; got != "application/json" {
-		t.Fatalf("Content-Type header = %q, want application/json", got)
+	if got := screen.requests[0].Headers["Content-Type"]; !reflect.DeepEqual(got, []string{"application/json"}) {
+		t.Fatalf("Content-Type header = %v, want [application/json]", got)
 	}
 }
 
 func TestHeadersEditorDeletesSelectedRow(t *testing.T) {
-	screen := newScreen([]request.Request{{Headers: map[string]string{
-		"Accept":        "application/json",
-		"Authorization": "Bearer token",
+	screen := newScreen([]request.Request{{Headers: map[string][]string{
+		"Accept":        {"application/json"},
+		"Authorization": {"Bearer token"},
 	}}})
 	screen.focusedPanel = focusedPanelHeaders
 
@@ -325,13 +330,13 @@ func TestHeadersEditorDeletesSelectedRow(t *testing.T) {
 	if _, ok := screen.requests[0].Headers["Accept"]; ok {
 		t.Fatal("deleted Accept key still exists")
 	}
-	if got := screen.requests[0].Headers["Authorization"]; got != "Bearer token" {
-		t.Fatalf("Authorization header = %q, want Bearer token", got)
+	if got := screen.requests[0].Headers["Authorization"]; !reflect.DeepEqual(got, []string{"Bearer token"}) {
+		t.Fatalf("Authorization header = %v, want [Bearer token]", got)
 	}
 }
 
-func TestSyncHeadersSkipsEmptyKeysAndLastDuplicateWins(t *testing.T) {
-	screen := newScreen([]request.Request{{Headers: map[string]string{}}})
+func TestSyncHeadersSkipsEmptyKeysAndPreservesDuplicates(t *testing.T) {
+	screen := newScreen([]request.Request{{Headers: map[string][]string{}}})
 	screen.headersEditor.rows = []headerRow{
 		{key: "", value: "ignored"},
 		{key: "Accept", value: "text/plain"},
@@ -343,8 +348,8 @@ func TestSyncHeadersSkipsEmptyKeysAndLastDuplicateWins(t *testing.T) {
 	if _, ok := screen.requests[0].Headers[""]; ok {
 		t.Fatal("empty key was synced")
 	}
-	if got := screen.requests[0].Headers["Accept"]; got != "application/json" {
-		t.Fatalf("Accept header = %q, want application/json", got)
+	if got := screen.requests[0].Headers["Accept"]; !reflect.DeepEqual(got, []string{"text/plain", "application/json"}) {
+		t.Fatalf("Accept header = %v, want [text/plain application/json]", got)
 	}
 }
 

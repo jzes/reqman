@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -72,7 +73,7 @@ func TestClientDo(t *testing.T) {
 	response, err := client.Do(context.Background(), request.Request{
 		URL:     url,
 		Method:  request.MethodPost,
-		Headers: map[string]string{"X-Test": "ok"},
+		Headers: map[string][]string{"X-Test": {"ok"}},
 		Body:    "hello",
 	})
 	if err != nil {
@@ -102,6 +103,35 @@ func TestClientDo(t *testing.T) {
 	}
 	if got := response.URL.String(); got != server.URL {
 		t.Fatalf("response url = %q, want %q", got, server.URL)
+	}
+}
+
+func TestClientDoSendsRepeatedHeaders(t *testing.T) {
+	var gotHeaders []string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHeaders = append([]string(nil), r.Header.Values("X-Test")...)
+	}))
+	defer server.Close()
+
+	url, err := request.NewURL(server.URL)
+	if err != nil {
+		t.Fatalf("new url: %v", err)
+	}
+
+	client := NewClient()
+	_, err = client.Do(context.Background(), request.Request{
+		URL:     url,
+		Method:  request.MethodGet,
+		Headers: map[string][]string{"X-Test": {"one", "two"}},
+	})
+	if err != nil {
+		t.Fatalf("do request: %v", err)
+	}
+
+	want := []string{"one", "two"}
+	if !reflect.DeepEqual(gotHeaders, want) {
+		t.Fatalf("X-Test headers = %v, want %v", gotHeaders, want)
 	}
 }
 
