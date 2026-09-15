@@ -41,6 +41,48 @@ func TestFileSourceWritesRequestToFile(t *testing.T) {
 	}
 }
 
+func TestFileSourceWriteDoesNotLeaveTempFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "req.curl")
+	source := NewFileSource(nil)
+
+	if err := source.Write(request.Request{Path: path, Method: request.MethodGet}); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("ReadDir() error = %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("entries len = %d, want 1", len(entries))
+	}
+	if got := entries[0].Name(); got != "req.curl" {
+		t.Fatalf("entry name = %q, want req.curl", got)
+	}
+}
+
+func TestFileSourceWritePreservesExistingFilePermissions(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "req.curl")
+	if err := os.WriteFile(path, []byte("old"), 0600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	source := NewFileSource(nil)
+	if err := source.Write(request.Request{Path: path, Method: request.MethodGet}); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Stat() error = %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0600 {
+		t.Fatalf("file permissions = %v, want %v", got, os.FileMode(0600))
+	}
+}
+
 func TestFileSourceWritesMultilineJSONBodyRoundTrip(t *testing.T) {
 	parsedURL, err := request.NewURL("http://localhost/books")
 	if err != nil {
