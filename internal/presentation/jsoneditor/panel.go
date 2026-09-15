@@ -1,9 +1,7 @@
 package jsoneditor
 
 import (
-	"bytes"
 	"encoding/json"
-	"os/exec"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -76,7 +74,7 @@ func (p *Panel) EnterNavigationMode() tea.Cmd {
 }
 
 func (p *Panel) PersistChanges() {
-	p.FormatJSONWithJQ()
+	p.FormatJSON()
 }
 
 func (p *Panel) HandleEscape() EscapeResult {
@@ -114,25 +112,6 @@ func (p *Panel) FormatJSON() bool {
 	}
 
 	p.textArea.SetValue(string(formatted))
-	return true
-}
-
-func (p *Panel) FormatJSONWithJQ() bool {
-	raw := strings.TrimSpace(p.textArea.Value())
-	if raw == "" {
-		return false
-	}
-
-	cmd := exec.Command("jq", ".")
-	cmd.Stdin = strings.NewReader(raw)
-	var stdout bytes.Buffer
-	cmd.Stdout = &stdout
-	if err := cmd.Run(); err != nil {
-		return false
-	}
-
-	formatted := strings.TrimRight(stdout.String(), "\n")
-	p.textArea.SetValue(formatted)
 	return true
 }
 
