@@ -74,7 +74,59 @@ func (s FileSource) Load(path string) (request.Request, error) {
 
 func (s FileSource) Write(request request.Request) error {
 	content := requestContent(request)
-	return os.WriteFile(request.Path, []byte(content), 0644)
+	return writeFileAtomically(request.Path, []byte(content))
+}
+
+func writeFileAtomically(path string, content []byte) error {
+	fileMode, err := getFileMode(path)
+	if err != nil {
+		return err
+	}
+	dir := filepath.Dir(path)
+	base := filepath.Base(path)
+	tempFile, err := os.CreateTemp(
+		dir,
+		fmt.Sprintf(".%s.*.tmp", base),
+	)
+	if err != nil {
+		return err
+	}
+
+	tempPath := tempFile.Name()
+	removeTemp := true
+	defer func() {
+		if removeTemp {
+			_ = os.Remove(tempPath)
+		}
+	}()
+
+	if _, err := tempFile.Write(content); err != nil {
+		_ = tempFile.Close()
+		return err
+	}
+	if err := tempFile.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tempPath, fileMode); err != nil {
+		return err
+	}
+	if err := os.Rename(tempPath, path); err != nil {
+		return err
+	}
+
+	removeTemp = false
+	return nil
+}
+
+func getFileMode(path string) (os.FileMode, error) {
+	info, err := os.Stat(path)
+	if err == nil {
+		return info.Mode().Perm(), nil
+	}
+	if os.IsNotExist(err) {
+		return os.FileMode(0644), nil
+	}
+	return 0, err
 }
 
 func requestContent(request request.Request) string {
