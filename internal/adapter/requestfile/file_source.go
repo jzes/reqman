@@ -136,7 +136,9 @@ func requestContent(request request.Request) string {
 	}
 
 	for _, key := range sortedHeaderKeys(request.Headers) {
-		args = append(args, "-H", fmt.Sprintf("%s: %s", key, request.Headers[key]))
+		for _, value := range request.Headers[key] {
+			args = append(args, "-H", fmt.Sprintf("%s: %s", key, value))
+		}
 	}
 
 	if request.Body != "" {
@@ -150,7 +152,7 @@ func requestContent(request request.Request) string {
 	return strings.Join(quoteArgs(args), " ")
 }
 
-func sortedHeaderKeys(headers map[string]string) []string {
+func sortedHeaderKeys(headers map[string][]string) []string {
 	keys := make([]string, 0, len(headers))
 	for key := range headers {
 		keys = append(keys, key)

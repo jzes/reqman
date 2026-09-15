@@ -130,12 +130,14 @@ func (e *headersEditor) selectNextRow() {
 	}
 }
 
-func headersFromMap(headers map[string]string) []headerRow {
+func headersFromMap(headers map[string][]string) []headerRow {
 	rows := make([]headerRow, 0, len(headers))
-	for key, value := range headers {
-		rows = append(rows, headerRow{key: key, value: value})
+	for key, values := range headers {
+		for _, value := range values {
+			rows = append(rows, headerRow{key: key, value: value})
+		}
 	}
-	sort.Slice(rows, func(i, j int) bool {
+	sort.SliceStable(rows, func(i, j int) bool {
 		return rows[i].key < rows[j].key
 	})
 	return rows
