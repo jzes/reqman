@@ -137,11 +137,11 @@ func (scr Screen) processNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case '[':
 		if scr.focusedPanel == focusedPanelResponse {
-			scr.selectPreviousResponseTab()
+			scr.responsePanel.SelectPreviousTab()
 		}
 	case ']':
 		if scr.focusedPanel == focusedPanelResponse {
-			scr.selectNextResponseTab()
+			scr.responsePanel.SelectNextTab()
 		}
 	case 'h':
 		scr.focusLeftPanel()
@@ -181,18 +181,6 @@ func (scr Screen) processNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return scr, nil
-}
-
-func (scr *Screen) selectPreviousResponseTab() {
-	if scr.selectedResponseTab == responseTabStats {
-		scr.selectedResponseTab = responseTabCount - 1
-		return
-	}
-	scr.selectedResponseTab--
-}
-
-func (scr *Screen) selectNextResponseTab() {
-	scr.selectedResponseTab = (scr.selectedResponseTab + 1) % responseTabCount
 }
 
 func (scr Screen) processNewRequestPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -242,7 +230,7 @@ func (scr Screen) processInsertMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return scr, cmd
 		}
 	case focusedPanelHeaders:
-		if scr.updateHeadersEditor(msg) {
+		if scr.headersEditor.Update(msg) {
 			scr.syncHeadersToSelectedRequest()
 		}
 	case focusedPanelBody:
@@ -260,9 +248,9 @@ func (scr Screen) processInsertMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case focusedPanelResponse:
 		switch msg.Type {
 		case tea.KeyTab:
-			scr.selectNextResponseTab()
+			scr.responsePanel.SelectNextTab()
 		case tea.KeyShiftTab:
-			scr.selectPreviousResponseTab()
+			scr.responsePanel.SelectPreviousTab()
 		}
 	}
 

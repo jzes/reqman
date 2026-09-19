@@ -15,6 +15,8 @@ import (
 
 	"github.com/jzes/reqman/internal/domain/request"
 	"github.com/jzes/reqman/internal/presentation/jsoneditor"
+	"github.com/jzes/reqman/internal/presentation/panels/headers"
+	"github.com/jzes/reqman/internal/presentation/panels/response"
 )
 
 func TestViewRendersBodyAndResponsePanels(t *testing.T) {
@@ -167,7 +169,7 @@ func TestResponseRendersTabs(t *testing.T) {
 func TestResponseBodyTabFormatsJSON(t *testing.T) {
 	screen := newScreen([]request.Request{{Name: "req.curl"}})
 	screen.hasResponse = true
-	screen.selectedResponseTab = responseTabBody
+	screen.responsePanel.SelectTab(response.TabBody)
 	screen.response = request.Response{Body: `{"name":"x","items":[1,2]}`}
 
 	view := screen.renderResponse(80)
@@ -182,7 +184,7 @@ func TestResponseBodyTabFormatsJSON(t *testing.T) {
 func TestResponseHeadersTabRendersSortedTable(t *testing.T) {
 	screen := newScreen([]request.Request{{Name: "req.curl"}})
 	screen.hasResponse = true
-	screen.selectedResponseTab = responseTabHeaders
+	screen.responsePanel.SelectTab(response.TabHeaders)
 	screen.response = request.Response{Headers: request.NewHeadersFrom(map[string][]string{
 		"X-Zeta":       {"last"},
 		"Content-Type": {"application/json"},
@@ -212,18 +214,18 @@ func TestResponseTabNavigation(t *testing.T) {
 	screen.focusedPanel = focusedPanelResponse
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{']'}})
-	if screen.selectedResponseTab != responseTabBody {
-		t.Fatalf("selected response tab after ] = %v, want body", screen.selectedResponseTab)
+	if screen.responsePanel.SelectedTab() != response.TabBody {
+		t.Fatalf("selected response tab after ] = %v, want body", screen.responsePanel.SelectedTab())
 	}
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'['}})
-	if screen.selectedResponseTab != responseTabStats {
-		t.Fatalf("selected response tab after [ = %v, want stats", screen.selectedResponseTab)
+	if screen.responsePanel.SelectedTab() != response.TabStats {
+		t.Fatalf("selected response tab after [ = %v, want stats", screen.responsePanel.SelectedTab())
 	}
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'['}})
-	if screen.selectedResponseTab != responseTabRaw {
-		t.Fatalf("selected response tab after wrapped [ = %v, want raw", screen.selectedResponseTab)
+	if screen.responsePanel.SelectedTab() != response.TabRaw {
+		t.Fatalf("selected response tab after wrapped [ = %v, want raw", screen.responsePanel.SelectedTab())
 	}
 }
 
@@ -237,13 +239,13 @@ func TestResponseInsertModeTabNavigation(t *testing.T) {
 	}
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyTab})
-	if screen.selectedResponseTab != responseTabBody {
-		t.Fatalf("selected response tab after tab = %v, want body", screen.selectedResponseTab)
+	if screen.responsePanel.SelectedTab() != response.TabBody {
+		t.Fatalf("selected response tab after tab = %v, want body", screen.responsePanel.SelectedTab())
 	}
 
 	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyShiftTab})
-	if screen.selectedResponseTab != responseTabStats {
-		t.Fatalf("selected response tab after shift+tab = %v, want stats", screen.selectedResponseTab)
+	if screen.responsePanel.SelectedTab() != response.TabStats {
+		t.Fatalf("selected response tab after shift+tab = %v, want stats", screen.responsePanel.SelectedTab())
 	}
 }
 
@@ -268,12 +270,12 @@ func TestHeadersFromDomainSortsRows(t *testing.T) {
 		"Content": {"text/plain"},
 	}))
 
-	got := []headerRow{rows[0], rows[1], rows[2], rows[3]}
-	want := []headerRow{
-		{key: "Accept", value: "application/json"},
-		{key: "Accept", value: "text/plain"},
-		{key: "Content", value: "text/plain"},
-		{key: "X-Zeta", value: "last"},
+	got := []headers.Row{rows[0], rows[1], rows[2], rows[3]}
+	want := []headers.Row{
+		{Key: "Accept", Value: "application/json"},
+		{Key: "Accept", Value: "text/plain"},
+		{Key: "Content", Value: "text/plain"},
+		{Key: "X-Zeta", Value: "last"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("header rows = %v, want %v", got, want)
@@ -337,11 +339,11 @@ func TestHeadersEditorDeletesSelectedRow(t *testing.T) {
 
 func TestSyncHeadersSkipsEmptyKeysAndPreservesDuplicates(t *testing.T) {
 	screen := newScreen([]request.Request{{}})
-	screen.headersEditor.rows = []headerRow{
-		{key: "", value: "ignored"},
-		{key: "Accept", value: "text/plain"},
-		{key: "Accept", value: "application/json"},
-	}
+	screen.headersEditor.SetRows([]headers.Row{
+		{Key: "", Value: "ignored"},
+		{Key: "Accept", Value: "text/plain"},
+		{Key: "Accept", Value: "application/json"},
+	})
 
 	screen.syncHeadersToSelectedRequest()
 
