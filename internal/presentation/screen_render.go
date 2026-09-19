@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -492,21 +491,16 @@ func (scr Screen) renderResponseHeaders(width int) string {
 	builder.WriteString("  ")
 	builder.WriteString(padOrTruncate("Value", valueColumnWidth))
 
-	if len(scr.response.Headers) == 0 {
+	if scr.response.Headers.Len() == 0 {
 		builder.WriteString("\n  (empty)")
 		return builder.String()
 	}
 
-	keys := make([]string, 0, len(scr.response.Headers))
-	for key := range scr.response.Headers {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	for _, key := range keys {
+	for _, key := range scr.response.Headers.Names() {
 		builder.WriteString("\n")
 		builder.WriteString(padOrTruncate(key, headerColumnWidth))
 		builder.WriteString("  ")
-		builder.WriteString(padOrTruncate(strings.Join(scr.response.Headers[key], ", "), valueColumnWidth))
+		builder.WriteString(padOrTruncate(strings.Join(scr.response.Headers.Values(key), ", "), valueColumnWidth))
 	}
 
 	return builder.String()
@@ -519,17 +513,12 @@ func (scr Screen) renderResponseRaw() string {
 	fmt.Fprintf(&builder, "Status Code: %d\n", scr.response.StatusCode)
 	fmt.Fprintf(&builder, "Duration: %s\n", scr.response.Duration)
 
-	if len(scr.response.Headers) == 0 {
+	if scr.response.Headers.Len() == 0 {
 		builder.WriteString("Headers:\n  (empty)\n")
 	} else {
 		builder.WriteString("Headers:\n")
-		keys := make([]string, 0, len(scr.response.Headers))
-		for key := range scr.response.Headers {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-		for _, key := range keys {
-			fmt.Fprintf(&builder, "  %s: %s\n", key, strings.Join(scr.response.Headers[key], ", "))
+		for _, key := range scr.response.Headers.Names() {
+			fmt.Fprintf(&builder, "  %s: %s\n", key, strings.Join(scr.response.Headers.Values(key), ", "))
 		}
 	}
 

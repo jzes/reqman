@@ -73,7 +73,7 @@ func TestClientDo(t *testing.T) {
 	response, err := client.Do(context.Background(), request.Request{
 		URL:     url,
 		Method:  request.MethodPost,
-		Headers: map[string][]string{"X-Test": {"ok"}},
+		Headers: request.NewHeadersFrom(map[string][]string{"X-Test": {"ok"}}),
 		Body:    "hello",
 	})
 	if err != nil {
@@ -95,7 +95,7 @@ func TestClientDo(t *testing.T) {
 	if got := response.Status; got != "201 Created" {
 		t.Fatalf("status = %q, want %q", got, "201 Created")
 	}
-	if got := response.Headers["X-Reply"]; len(got) != 1 || got[0] != "ok" {
+	if got := response.Headers.Values("X-Reply"); len(got) != 1 || got[0] != "ok" {
 		t.Fatalf("headers = %v, want X-Reply ok", response.Headers)
 	}
 	if got := response.Body; got != "done" {
@@ -123,7 +123,7 @@ func TestClientDoSendsRepeatedHeaders(t *testing.T) {
 	_, err = client.Do(context.Background(), request.Request{
 		URL:     url,
 		Method:  request.MethodGet,
-		Headers: map[string][]string{"X-Test": {"one", "two"}},
+		Headers: request.NewHeadersFrom(map[string][]string{"X-Test": {"one", "two"}}),
 	})
 	if err != nil {
 		t.Fatalf("do request: %v", err)

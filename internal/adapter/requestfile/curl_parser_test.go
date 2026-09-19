@@ -29,7 +29,7 @@ func TestParseCurlRequestWithLocationAndURL(t *testing.T) {
 	if parsed.Method != request.MethodGet {
 		t.Fatalf("Method = %q, want %q", parsed.Method, request.MethodGet)
 	}
-	if len(parsed.Headers) != 0 {
+	if parsed.Headers.Len() != 0 {
 		t.Fatalf("Headers = %v, want empty", parsed.Headers)
 	}
 	if parsed.Body != "" {
@@ -174,9 +174,9 @@ func TestParseCurlRequestAllowsEmptyURL(t *testing.T) {
 	assertHeaderValues(t, parsed.Headers, "Accept", []string{"application/json"})
 }
 
-func assertHeaderValues(t *testing.T, headers map[string][]string, name string, want []string) {
+func assertHeaderValues(t *testing.T, headers request.Headers, name string, want []string) {
 	t.Helper()
-	if got := headers[name]; !reflect.DeepEqual(got, want) {
+	if got := headers.Values(name); !reflect.DeepEqual(got, want) {
 		t.Fatalf("%s header = %v, want %v", name, got, want)
 	}
 }

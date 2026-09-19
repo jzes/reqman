@@ -21,10 +21,10 @@ func TestFileSourceWritesRequestToFile(t *testing.T) {
 		Path:   path,
 		URL:    parsedURL,
 		Method: request.MethodPost,
-		Headers: map[string][]string{
+		Headers: request.NewHeadersFrom(map[string][]string{
 			"Content-Type": {"application/json"},
 			"X-Test":       {"yes"},
-		},
+		}),
 		Body: `{"name":"x"}`,
 	})
 	if err != nil {
@@ -55,9 +55,9 @@ func TestFileSourceWritesMultilineJSONBodyRoundTrip(t *testing.T) {
 		Path:   path,
 		URL:    parsedURL,
 		Method: request.MethodPost,
-		Headers: map[string][]string{
+		Headers: request.NewHeadersFrom(map[string][]string{
 			"Content-Type": {"application/json"},
-		},
+		}),
 		Body: body,
 	})
 	if err != nil {
@@ -93,10 +93,9 @@ func TestFileSourceWritesEmptyRequestRoundTrip(t *testing.T) {
 	path := filepath.Join(dir, "empty.curl")
 	source := NewFileSource(map[string]Parser{CurlFileExtension: ParseCurlRequest})
 	err := source.Write(request.Request{
-		Name:    "empty.curl",
-		Path:    path,
-		Method:  request.MethodGet,
-		Headers: map[string][]string{},
+		Name:   "empty.curl",
+		Path:   path,
+		Method: request.MethodGet,
 	})
 	if err != nil {
 		t.Fatalf("Write() error = %v", err)
@@ -139,9 +138,9 @@ func TestFileSourceWritesRepeatedHeaders(t *testing.T) {
 		Path:   path,
 		URL:    parsedURL,
 		Method: request.MethodGet,
-		Headers: map[string][]string{
+		Headers: request.NewHeadersFrom(map[string][]string{
 			"Accept": {"application/json", "text/plain"},
-		},
+		}),
 	})
 	if err != nil {
 		t.Fatalf("Write() error = %v", err)
