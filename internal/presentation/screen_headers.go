@@ -131,7 +131,7 @@ func (e *headersEditor) selectNextRow() {
 }
 
 func headersFromDomain(headers request.Headers) []headerRow {
-	requestHeaders := headers.Rows()
+	requestHeaders := headers.List()
 	rows := make([]headerRow, 0, len(requestHeaders))
 	for _, header := range requestHeaders {
 		rows = append(rows, headerRow{key: header.Key, value: header.Value})
