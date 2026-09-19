@@ -31,10 +31,8 @@ func (c Client) Do(ctx context.Context, req request.Request) (request.Response, 
 		return request.Response{}, err
 	}
 
-	for key, values := range req.Headers {
-		for _, value := range values {
-			httpRequest.Header.Add(key, value)
-		}
+	for _, header := range req.Headers.Rows() {
+		httpRequest.Header.Add(header.Key, header.Value)
 	}
 
 	httpClient := c.httpClient
@@ -70,12 +68,12 @@ func (c Client) Do(ctx context.Context, req request.Request) (request.Response, 
 	}, nil
 }
 
-func cloneResponseHeaders(headers http.Header) map[string][]string {
+func cloneResponseHeaders(headers http.Header) request.Headers {
 	cloned := make(map[string][]string, len(headers))
 	for key, values := range headers {
 		cloned[key] = append([]string(nil), values...)
 	}
-	return cloned
+	return request.NewHeadersFrom(cloned)
 }
 
 func requestURL(request request.Request) string {

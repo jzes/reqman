@@ -46,7 +46,7 @@ func curlArgs(content []byte) ([]string, error) {
 func requestFromArgs(args []string) (request.Request, error) {
 	parsed := request.Request{
 		Method:  request.MethodGet,
-		Headers: make(map[string][]string),
+		Headers: request.NewHeaders(),
 	}
 
 	state := curlArgParser{request: &parsed}

@@ -1,9 +1,9 @@
 package presentation
 
 import (
-	"sort"
-
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/jzes/reqman/internal/domain/request"
 )
 
 func newHeadersEditor() headersEditor {
@@ -130,15 +130,11 @@ func (e *headersEditor) selectNextRow() {
 	}
 }
 
-func headersFromMap(headers map[string][]string) []headerRow {
-	rows := make([]headerRow, 0, len(headers))
-	for key, values := range headers {
-		for _, value := range values {
-			rows = append(rows, headerRow{key: key, value: value})
-		}
+func headersFromDomain(headers request.Headers) []headerRow {
+	requestHeaders := headers.Rows()
+	rows := make([]headerRow, 0, len(requestHeaders))
+	for _, header := range requestHeaders {
+		rows = append(rows, headerRow{key: header.Key, value: header.Value})
 	}
-	sort.SliceStable(rows, func(i, j int) bool {
-		return rows[i].key < rows[j].key
-	})
 	return rows
 }

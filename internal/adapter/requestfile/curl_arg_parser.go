@@ -55,7 +55,9 @@ func (s *curlArgParser) handleHeaderFlag(args []string, index int) (int, error) 
 		return index, err
 	}
 
-	addHeader(s.request.Headers, value)
+	if err := addHeader(&s.request.Headers, value); err != nil {
+		return index, err
+	}
 	return next, nil
 }
 
@@ -74,7 +76,9 @@ func (s *curlArgParser) handleBodyFlag(args []string, index int) (int, error) {
 
 	s.request.Body = value
 	if strings.HasPrefix(args[index], "--json") {
-		addHeaderIfMissing(s.request.Headers, "Content-Type", "application/json")
+		if err := addHeaderIfMissing(&s.request.Headers, "Content-Type", "application/json"); err != nil {
+			return index, err
+		}
 	}
 
 	return next, nil

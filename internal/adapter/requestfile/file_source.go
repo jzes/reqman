@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/jzes/reqman/internal/domain/request"
@@ -135,10 +134,8 @@ func requestContent(request request.Request) string {
 		args = append(args, "-X", string(request.Method))
 	}
 
-	for _, key := range sortedHeaderKeys(request.Headers) {
-		for _, value := range request.Headers[key] {
-			args = append(args, "-H", fmt.Sprintf("%s: %s", key, value))
-		}
+	for _, header := range request.Headers.Rows() {
+		args = append(args, "-H", fmt.Sprintf("%s: %s", header.Key, header.Value))
 	}
 
 	if request.Body != "" {
@@ -150,15 +147,6 @@ func requestContent(request request.Request) string {
 	}
 
 	return strings.Join(quoteArgs(args), " ")
-}
-
-func sortedHeaderKeys(headers map[string][]string) []string {
-	keys := make([]string, 0, len(headers))
-	for key := range headers {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 func quoteArgs(args []string) []string {
