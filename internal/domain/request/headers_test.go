@@ -20,7 +20,7 @@ func TestHeadersPreservesRepeatedValues(t *testing.T) {
 	}
 }
 
-func TestHeadersRowsAreSortedByName(t *testing.T) {
+func TestHeadersListIsSortedByName(t *testing.T) {
 	headers := NewHeadersFrom(map[string][]string{
 		"X-Zeta": {"last"},
 		"Accept": {"application/json", "text/plain"},
@@ -31,8 +31,8 @@ func TestHeadersRowsAreSortedByName(t *testing.T) {
 		{Key: "Accept", Value: "text/plain"},
 		{Key: "X-Zeta", Value: "last"},
 	}
-	if got := headers.Rows(); !reflect.DeepEqual(got, want) {
-		t.Fatalf("rows = %v, want %v", got, want)
+	if got := headers.List(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("list = %v, want %v", got, want)
 	}
 }
 

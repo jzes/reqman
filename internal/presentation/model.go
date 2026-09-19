@@ -13,6 +13,8 @@ import (
 	"github.com/jzes/reqman/internal/domain/request"
 	presentationcommandpanel "github.com/jzes/reqman/internal/presentation/commandpanel"
 	"github.com/jzes/reqman/internal/presentation/jsoneditor"
+	"github.com/jzes/reqman/internal/presentation/panels/headers"
+	"github.com/jzes/reqman/internal/presentation/panels/response"
 	presentationrequest "github.com/jzes/reqman/internal/presentation/request"
 )
 
@@ -40,34 +42,6 @@ const (
 	focusedPanelBody
 	focusedPanelResponse
 )
-
-type headerCell int
-
-const (
-	headerCellKey headerCell = iota
-	headerCellValue
-)
-
-type headerRow struct {
-	key   string
-	value string
-}
-
-type responseTab int
-
-const (
-	responseTabStats responseTab = iota
-	responseTabBody
-	responseTabHeaders
-	responseTabRaw
-	responseTabCount
-)
-
-type headersEditor struct {
-	rows         []headerRow
-	selectedRow  int
-	selectedCell headerCell
-}
 
 var (
 	ansiPrefixPattern   = regexp.MustCompile(`^(?:\x1b\[[0-9;]*m)+`)
@@ -102,7 +76,7 @@ type Screen struct {
 	loadedRequests       map[int]bool
 	selectedRequestIndex int
 	requestScrollOffset  int
-	headersEditor        headersEditor
+	headersEditor        headers.Panel
 	focusedPanel         focusedPanel
 	insertMode           bool
 	width                int
@@ -117,11 +91,11 @@ type Screen struct {
 	response             request.Response
 	hasResponse          bool
 	responseError        string
+	responsePanel        response.Panel
 	requestInFlight      bool
 	requestCancel        context.CancelFunc
 	nextRequestID        int
 	inFlightRequestID    int
-	selectedResponseTab  responseTab
 }
 
 func NewScreen(requestPaths []string, rw presentationrequest.RequestWriter, rd presentationrequest.RequestDoer, rl presentationrequest.RequestLoader) Screen {
@@ -129,10 +103,11 @@ func NewScreen(requestPaths []string, rw presentationrequest.RequestWriter, rd p
 		requestPaths:   requestPaths,
 		requests:       make([]request.Request, len(requestPaths)),
 		loadedRequests: make(map[int]bool),
-		headersEditor:  newHeadersEditor(),
+		headersEditor:  headers.NewPanel(),
 		url:            newURLPanel(),
 		body:           jsoneditor.NewPanel(),
 		methodList:     newMethodList(),
+		responsePanel:  response.NewPanel(),
 		statusSpinner:  spinner.New(spinner.WithSpinner(spinner.Line)),
 		requestWriter:  rw,
 		requestDoer:    rd,
@@ -174,55 +149,6 @@ func (m Screen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.processKeyMessage(msg)
 	}
 	return m, nil
-}
-
-func (m *Screen) focusLeftPanel() {
-	switch m.focusedPanel {
-	case focusedPanelURL:
-		m.focusedPanel = focusedPanelMethod
-	case focusedPanelDoButton:
-		m.focusedPanel = focusedPanelURL
-	case focusedPanelMethod, focusedPanelHeaders, focusedPanelBody, focusedPanelResponse:
-		m.focusedPanel = focusedPanelRequests
-	}
-}
-
-func (m *Screen) focusRightPanel() {
-	if m.focusedPanel == focusedPanelRequests {
-		m.focusedPanel = focusedPanelMethod
-		return
-	}
-
-	if m.focusedPanel == focusedPanelMethod {
-		m.focusedPanel = focusedPanelURL
-		return
-	}
-
-	if m.focusedPanel == focusedPanelURL {
-		m.focusedPanel = focusedPanelDoButton
-	}
-}
-
-func (m *Screen) focusLowerPanel() {
-	switch m.focusedPanel {
-	case focusedPanelMethod, focusedPanelURL, focusedPanelDoButton:
-		m.focusedPanel = focusedPanelHeaders
-	case focusedPanelHeaders:
-		m.focusedPanel = focusedPanelBody
-	case focusedPanelBody:
-		m.focusedPanel = focusedPanelResponse
-	}
-}
-
-func (m *Screen) focusUpperPanel() {
-	switch m.focusedPanel {
-	case focusedPanelResponse:
-		m.focusedPanel = focusedPanelBody
-	case focusedPanelBody:
-		m.focusedPanel = focusedPanelHeaders
-	case focusedPanelHeaders:
-		m.focusedPanel = focusedPanelMethod
-	}
 }
 
 func (m *Screen) SetRequestInFlight(inFlight bool) {

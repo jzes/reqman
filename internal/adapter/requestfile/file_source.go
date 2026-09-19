@@ -134,7 +134,7 @@ func requestContent(request request.Request) string {
 		args = append(args, "-X", string(request.Method))
 	}
 
-	for _, header := range request.Headers.Rows() {
+	for _, header := range request.Headers.List() {
 		args = append(args, "-H", fmt.Sprintf("%s: %s", header.Key, header.Value))
 	}
 

@@ -90,11 +90,11 @@ func (scr *Screen) showSelectedRequestURL() {
 
 func (scr *Screen) showSelectedRequestHeaders() {
 	if !scr.loadSelectedRequest() {
-		scr.headersEditor.setRows(nil)
+		scr.headersEditor.SetRows(nil)
 		return
 	}
 
-	scr.headersEditor.setRows(headersFromDomain(scr.requests[scr.selectedRequestIndex].Headers))
+	scr.headersEditor.SetRows(headersFromDomain(scr.requests[scr.selectedRequestIndex].Headers))
 }
 
 func (scr *Screen) showSelectedRequestBody() {
@@ -207,11 +207,11 @@ func (scr *Screen) syncHeadersToSelectedRequest() {
 	}
 
 	headers := request.NewHeaders()
-	for _, row := range scr.headersEditor.rows {
-		if row.key == "" {
+	for _, row := range scr.headersEditor.Rows() {
+		if row.Key == "" {
 			continue
 		}
-		_ = headers.Add(row.key, row.value)
+		_ = headers.Add(row.Key, row.Value)
 	}
 	scr.requests[scr.selectedRequestIndex].Headers = headers
 }

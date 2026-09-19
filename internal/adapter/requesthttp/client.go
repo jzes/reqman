@@ -31,7 +31,7 @@ func (c Client) Do(ctx context.Context, req request.Request) (request.Response, 
 		return request.Response{}, err
 	}
 
-	for _, header := range req.Headers.Rows() {
+	for _, header := range req.Headers.List() {
 		httpRequest.Header.Add(header.Key, header.Value)
 	}
 
