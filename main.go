@@ -7,7 +7,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jzes/reqman/internal/adapter/requestfile"
 	"github.com/jzes/reqman/internal/adapter/requesthttp"
-	"github.com/jzes/reqman/internal/application"
 	"github.com/jzes/reqman/internal/presentation"
 )
 
@@ -22,18 +21,16 @@ func main() {
 	}
 	fileSource := requestfile.NewFileSource(parsers)
 	httpClient := requesthttp.NewClient()
-	loader := application.NewRequestLoader(fileSource)
-	writer := application.NewRequestWriter(fileSource, requestsDir)
-	doer := application.NewRequestDoer(httpClient)
+	writer := requestfile.NewFileWriter(fileSource, requestsDir)
 
-	requestPaths, err := loader.List(requestsDir)
+	requestPaths, err := fileSource.List(requestsDir)
 	if err != nil {
 		log.Printf("Error listing requests from %q: %v", requestsDir, err)
 		os.Exit(1)
 	}
 
 	program := tea.NewProgram(
-		presentation.NewScreen(requestPaths, writer, doer, loader),
+		presentation.NewScreen(requestPaths, writer, httpClient, fileSource),
 		tea.WithAltScreen(),
 	)
 	if _, err := program.Run(); err != nil {

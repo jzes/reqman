@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	applicationrequest "github.com/jzes/reqman/internal/application/request"
 	"github.com/jzes/reqman/internal/domain/request"
 )
 
@@ -16,8 +15,6 @@ const defaultRequestTimeout = 30 * time.Second
 type Client struct {
 	httpClient *http.Client
 }
-
-var _ applicationrequest.Doer = Client{}
 
 func NewClient() Client {
 	return Client{httpClient: &http.Client{Timeout: defaultRequestTimeout}}
