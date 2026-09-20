@@ -1,4 +1,4 @@
-package requestfile
+package requestcurl
 
 import (
 	"encoding/json"

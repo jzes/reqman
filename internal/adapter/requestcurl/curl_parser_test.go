@@ -1,4 +1,4 @@
-package requestfile
+package requestcurl
 
 import (
 	"reflect"
@@ -8,7 +8,7 @@ import (
 )
 
 func parseCurlRequest(name, path string, content []byte) (request.Request, error) {
-	return ParseCurlRequest(Item{Name: name, Path: path, Content: content})
+	return Parse(name, path, content)
 }
 
 func TestParseCurlRequestWithLocationAndURL(t *testing.T) {

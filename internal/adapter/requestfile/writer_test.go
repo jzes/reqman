@@ -5,12 +5,15 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/jzes/reqman/internal/adapter/requestcurl"
 	"github.com/jzes/reqman/internal/domain/request"
 )
 
 func TestWriterSetsPathFromDirectoryWhenRequestHasNoPath(t *testing.T) {
 	dir := t.TempDir()
-	writer := NewFileWriter(NewFileSource(nil), dir)
+	writer := NewFileWriter(NewFileSource(map[string]Format{
+		requestcurl.Extension: {Format: requestcurl.Format},
+	}), dir)
 
 	if err := writer.WriteToFile(request.Request{Name: "req.curl"}); err != nil {
 		t.Fatalf("WriteToFile() error = %v", err)

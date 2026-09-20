@@ -5,6 +5,7 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jzes/reqman/internal/adapter/requestcurl"
 	"github.com/jzes/reqman/internal/adapter/requestfile"
 	"github.com/jzes/reqman/internal/adapter/requesthttp"
 	"github.com/jzes/reqman/internal/presentation"
@@ -16,10 +17,14 @@ func main() {
 		requestsDir = os.Args[1]
 	}
 
-	parsers := map[string]requestfile.Parser{
-		requestfile.CurlFileExtension: requestfile.ParseCurlRequest,
+	formats := map[string]requestfile.Format{
+		requestcurl.Extension: {
+			Parse:  requestcurl.Parse,
+			Format: requestcurl.Format,
+		},
 	}
-	fileSource := requestfile.NewFileSource(parsers)
+
+	fileSource := requestfile.NewFileSource(formats)
 	httpClient := requesthttp.NewClient()
 	writer := requestfile.NewFileWriter(fileSource, requestsDir)
 

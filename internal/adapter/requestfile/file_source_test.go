@@ -6,8 +6,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jzes/reqman/internal/adapter/requestcurl"
 	"github.com/jzes/reqman/internal/domain/request"
 )
+
+var curlFormat = Format{Parse: requestcurl.Parse, Format: requestcurl.Format}
 
 func TestFileSourceWritesRequestToFile(t *testing.T) {
 	parsedURL, err := request.NewURL("http://localhost/books")
@@ -16,7 +19,7 @@ func TestFileSourceWritesRequestToFile(t *testing.T) {
 	}
 
 	path := filepath.Join(t.TempDir(), "req.curl")
-	source := NewFileSource(nil)
+	source := NewFileSource(map[string]Format{requestcurl.Extension: curlFormat})
 	err = source.Write(request.Request{
 		Path:   path,
 		URL:    parsedURL,
@@ -44,7 +47,7 @@ func TestFileSourceWritesRequestToFile(t *testing.T) {
 func TestFileSourceWriteDoesNotLeaveTempFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "req.curl")
-	source := NewFileSource(nil)
+	source := NewFileSource(map[string]Format{requestcurl.Extension: curlFormat})
 
 	if err := source.Write(request.Request{Path: path, Method: request.MethodGet}); err != nil {
 		t.Fatalf("Write() error = %v", err)
@@ -69,7 +72,7 @@ func TestFileSourceWritePreservesExistingFilePermissions(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
-	source := NewFileSource(nil)
+	source := NewFileSource(map[string]Format{requestcurl.Extension: curlFormat})
 	if err := source.Write(request.Request{Path: path, Method: request.MethodGet}); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
@@ -91,7 +94,7 @@ func TestFileSourceWritesMultilineJSONBodyRoundTrip(t *testing.T) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "req.curl")
-	source := NewFileSource(map[string]Parser{CurlFileExtension: ParseCurlRequest})
+	source := NewFileSource(map[string]Format{requestcurl.Extension: curlFormat})
 	body := "{\n  \"name\": \"x\",\n  \"active\": true\n}"
 	err = source.Write(request.Request{
 		Path:   path,
@@ -133,7 +136,7 @@ func TestFileSourceWritesMultilineJSONBodyRoundTrip(t *testing.T) {
 func TestFileSourceWritesEmptyRequestRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "empty.curl")
-	source := NewFileSource(map[string]Parser{CurlFileExtension: ParseCurlRequest})
+	source := NewFileSource(map[string]Format{requestcurl.Extension: curlFormat})
 	err := source.Write(request.Request{
 		Name:   "empty.curl",
 		Path:   path,
@@ -175,7 +178,7 @@ func TestFileSourceWritesRepeatedHeaders(t *testing.T) {
 	}
 
 	path := filepath.Join(t.TempDir(), "req.curl")
-	source := NewFileSource(nil)
+	source := NewFileSource(map[string]Format{requestcurl.Extension: curlFormat})
 	err = source.Write(request.Request{
 		Path:   path,
 		URL:    parsedURL,
@@ -205,7 +208,7 @@ func TestFileSourceListSkipsInvalidCurlContent(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
-	source := NewFileSource(map[string]Parser{CurlFileExtension: ParseCurlRequest})
+	source := NewFileSource(map[string]Format{requestcurl.Extension: curlFormat})
 	paths, err := source.List(dir)
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
@@ -220,7 +223,7 @@ func TestFileSourceListSkipsInvalidCurlContent(t *testing.T) {
 }
 
 func TestFileSourceWriteReturnsError(t *testing.T) {
-	source := NewFileSource(nil)
+	source := NewFileSource(map[string]Format{requestcurl.Extension: curlFormat})
 	err := source.Write(request.Request{Path: filepath.Join(t.TempDir(), "missing", "req.curl")})
 	if err == nil {
 		t.Fatal("Write() error = nil, want error")
