@@ -27,6 +27,15 @@ go.work.sum
 # env file
 .env
 
+# GoReleaser
+dist/
+
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# IA
+.claude
+iaDocs
+testReqs
+docs/
