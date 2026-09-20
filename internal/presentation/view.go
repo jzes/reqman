@@ -310,6 +310,10 @@ func (scr Screen) renderResponse(widths ...int) string {
 		return "Executing request..."
 	}
 
+	if scr.fatalError {
+		return "Fatal error:\n" + scr.responseError + "\n\nPress any key to quit."
+	}
+
 	if scr.responseError != "" {
 		return "Error:\n" + scr.responseError
 	}

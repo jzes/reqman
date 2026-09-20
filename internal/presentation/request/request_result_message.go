@@ -15,6 +15,7 @@ type RequestResultMessage struct {
 	RequestID int
 	Response  domainrequest.Response
 	Err       error
+	Fatal     bool
 }
 
 func (msg RequestResultMessage) UpdateTarget(target resultTarget) {

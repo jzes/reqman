@@ -91,6 +91,7 @@ type Screen struct {
 	response             request.Response
 	hasResponse          bool
 	responseError        string
+	fatalError           bool
 	responsePanel        response.Panel
 	requestInFlight      bool
 	requestCancel        context.CancelFunc
@@ -136,6 +137,7 @@ func (m Screen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		msg.UpdateTarget(&m)
 		m.requestCancel = nil
 		m.inFlightRequestID = 0
+		m.fatalError = msg.Fatal
 		return m, nil
 	case spinner.TickMsg:
 		if !m.requestInFlight {

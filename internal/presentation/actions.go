@@ -2,12 +2,14 @@ package presentation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/jzes/reqman/internal/app/apperror"
 	"github.com/jzes/reqman/internal/domain/request"
 	presentationRequest "github.com/jzes/reqman/internal/presentation/request"
 )
@@ -76,6 +78,7 @@ func (scr *Screen) createRequest(name string) {
 func (scr *Screen) clearResponse() {
 	scr.hasResponse = false
 	scr.responseError = ""
+	scr.fatalError = false
 	scr.response = request.Response{}
 }
 
@@ -179,7 +182,7 @@ func (scr *Screen) startRequest() tea.Cmd {
 	requestID := scr.inFlightRequestID
 	return func() tea.Msg {
 		response, err := scr.requestDoer.Do(ctx, requestToDo)
-		return presentationRequest.RequestResultMessage{RequestID: requestID, Response: response, Err: err}
+		return presentationRequest.RequestResultMessage{RequestID: requestID, Response: response, Err: err, Fatal: errors.Is(err, apperror.ErrFatal)}
 	}
 }
 
@@ -197,6 +200,7 @@ func (scr *Screen) cancelRequest() {
 
 func (scr *Screen) showResponseError(message string) {
 	scr.responseError = message
+	scr.fatalError = false
 	scr.hasResponse = false
 	scr.response = request.Response{}
 }

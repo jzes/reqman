@@ -2,6 +2,7 @@ package requesthttp
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jzes/reqman/internal/app/apperror"
 	"github.com/jzes/reqman/internal/domain/request"
 )
 
@@ -145,24 +147,19 @@ func TestNewClientSetsDefaultTimeout(t *testing.T) {
 	}
 }
 
-func TestClientDoWorksWithoutConstructor(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	}))
-	defer server.Close()
-
-	url, err := request.NewURL(server.URL)
+func TestClientDoWithoutConstructorReturnsFatalError(t *testing.T) {
+	url, err := request.NewURL("localhost")
 	if err != nil {
 		t.Fatalf("new url: %v", err)
 	}
 
 	client := Client{}
-	response, err := client.Do(context.Background(), request.Request{URL: url, Method: request.MethodGet})
-	if err != nil {
-		t.Fatalf("do request: %v", err)
+	_, err = client.Do(context.Background(), request.Request{URL: url, Method: request.MethodGet})
+	if !errors.Is(err, apperror.ErrFatal) {
+		t.Fatalf("do request error = %v, want fatal error", err)
 	}
-	if response.StatusCode != http.StatusNoContent {
-		t.Fatalf("status code = %d, want %d", response.StatusCode, http.StatusNoContent)
+	if !errors.Is(err, MustUseConstructorError) {
+		t.Fatalf("do request error = %v, want constructor error", err)
 	}
 }
 
