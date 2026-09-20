@@ -24,5 +24,16 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Check formatting
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            printf 'The following files need gofmt:\n%s\n' "$files"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
       - name: Test
-        run: go test ./...
+        run: go test -race -cover ./...
