@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/jzes/reqman/internal/domain/request"
 )
@@ -21,11 +20,11 @@ type Item struct {
 }
 
 type FileSource struct {
-	parsers map[string]Parser
+	formats map[string]Format
 }
 
-func NewFileSource(parsers map[string]Parser) FileSource {
-	return FileSource{parsers: parsers}
+func NewFileSource(formats map[string]Format) FileSource {
+	return FileSource{formats: formats}
 }
 
 func (s FileSource) List(dir string) ([]string, error) {
@@ -41,7 +40,7 @@ func (s FileSource) List(dir string) ([]string, error) {
 		}
 
 		extension := filepath.Ext(entry.Name())
-		_, ok := s.parsers[extension]
+		_, ok := s.formats[extension]
 		if !ok {
 			continue
 		}
@@ -58,12 +57,12 @@ func (s FileSource) Load(path string) (request.Request, error) {
 		return request.Request{}, err
 	}
 
-	parser, ok := s.parsers[item.Extension]
-	if !ok {
+	format, ok := s.formats[item.Extension]
+	if !ok || format.Parse == nil {
 		return request.Request{}, fmt.Errorf("unsupported request file extension %q", item.Extension)
 	}
 
-	parsed, err := parser(item)
+	parsed, err := format.Parse(item.Name, item.Path, item.Content)
 	if err != nil {
 		return request.Request{}, fmt.Errorf("parse request file %q: %w", item.Path, err)
 	}
@@ -72,8 +71,18 @@ func (s FileSource) Load(path string) (request.Request, error) {
 }
 
 func (s FileSource) Write(request request.Request) error {
-	content := requestContent(request)
-	return writeFileAtomically(request.Path, []byte(content))
+	extension := filepath.Ext(request.Path)
+	format, ok := s.formats[extension]
+	if !ok || format.Format == nil {
+		return fmt.Errorf("unsupported request file extension %q", extension)
+	}
+
+	content, err := format.Format(request)
+	if err != nil {
+		return err
+	}
+
+	return writeFileAtomically(request.Path, content)
 }
 
 func writeFileAtomically(path string, content []byte) error {
@@ -126,39 +135,6 @@ func getFileMode(path string) (os.FileMode, error) {
 		return os.FileMode(0644), nil
 	}
 	return 0, err
-}
-
-func requestContent(request request.Request) string {
-	args := []string{"curl"}
-	if request.Method != "" {
-		args = append(args, "-X", string(request.Method))
-	}
-
-	for _, header := range request.Headers.List() {
-		args = append(args, "-H", fmt.Sprintf("%s: %s", header.Key, header.Value))
-	}
-
-	if request.Body != "" {
-		args = append(args, "-d", request.Body)
-	}
-
-	if request.URL.String() != "" {
-		args = append(args, request.URL.String())
-	}
-
-	return strings.Join(quoteArgs(args), " ")
-}
-
-func quoteArgs(args []string) []string {
-	quoted := make([]string, len(args))
-	for i, arg := range args {
-		quoted[i] = shellQuote(arg)
-	}
-	return quoted
-}
-
-func shellQuote(arg string) string {
-	return "'" + strings.ReplaceAll(arg, "'", "'\\''") + "'"
 }
 
 func readItem(path string) (Item, error) {

@@ -1,4 +1,4 @@
-package requestfile
+package requestcurl
 
 import (
 	"fmt"
@@ -7,21 +7,21 @@ import (
 	"mvdan.cc/sh/v3/shell"
 )
 
-const CurlFileExtension = ".curl"
+const Extension = ".curl"
 
-func ParseCurlRequest(item Item) (request.Request, error) {
-	args, err := curlArgs(item.Content)
+func Parse(name, path string, content []byte) (request.Request, error) {
+	args, err := curlArgs(content)
 	if err != nil {
-		return request.Request{}, fmt.Errorf("parse curl file %q: %w", item.Path, err)
+		return request.Request{}, fmt.Errorf("parse curl file %q: %w", path, err)
 	}
 
 	parsed, err := requestFromArgs(args)
 	if err != nil {
-		return request.Request{}, fmt.Errorf("parse curl file %q: %w", item.Path, err)
+		return request.Request{}, fmt.Errorf("parse curl file %q: %w", path, err)
 	}
 
-	parsed.Name = item.Name
-	parsed.Path = item.Path
+	parsed.Name = name
+	parsed.Path = path
 
 	return parsed, nil
 }
