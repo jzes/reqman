@@ -19,6 +19,9 @@ func (scr Screen) processKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if msg.Type == tea.KeyCtrlC {
 		return scr, tea.Quit
 	}
+	if scr.fatalError {
+		return scr, tea.Quit
+	}
 	if scr.helpOpen {
 		if msg.Type == tea.KeyEsc {
 			scr.helpOpen = false

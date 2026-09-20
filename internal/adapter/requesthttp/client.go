@@ -2,11 +2,14 @@ package requesthttp
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/jzes/reqman/internal/app/apperror"
 	"github.com/jzes/reqman/internal/domain/request"
 )
 
@@ -19,6 +22,8 @@ type Client struct {
 func NewClient() Client {
 	return Client{httpClient: &http.Client{Timeout: defaultRequestTimeout}}
 }
+
+var MustUseConstructorError = errors.New("Client must use the instantiated by NewClient constructor")
 
 func (c Client) Do(ctx context.Context, req request.Request) (request.Response, error) {
 	start := time.Now()
@@ -33,8 +38,8 @@ func (c Client) Do(ctx context.Context, req request.Request) (request.Response, 
 	}
 
 	httpClient := c.httpClient
-	if httpClient == nil {
-		httpClient = &http.Client{Timeout: defaultRequestTimeout}
+	if c.httpClient == nil {
+		return request.Response{}, fmt.Errorf("%w: %w", apperror.ErrFatal, MustUseConstructorError)
 	}
 
 	response, err := httpClient.Do(httpRequest)

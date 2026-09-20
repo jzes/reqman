@@ -13,6 +13,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/jzes/reqman/internal/app/apperror"
 	"github.com/jzes/reqman/internal/domain/request"
 	"github.com/jzes/reqman/internal/presentation/jsoneditor"
 	"github.com/jzes/reqman/internal/presentation/panels/headers"
@@ -1359,6 +1360,43 @@ func TestEscCancelsInFlightRequest(t *testing.T) {
 	case <-doer.ctx.Done():
 	default:
 		t.Fatal("request context was not canceled")
+	}
+}
+
+func TestFatalRequestErrorPromptsBeforeQuittingApplication(t *testing.T) {
+	doer := &fakeDoer{err: fmt.Errorf("request setup failed: %w", apperror.ErrFatal)}
+	screen := newScreenWithDeps([]request.Request{{Name: "req.curl"}}, nil, doer)
+	screen.focusedPanel = focusedPanelDoButton
+
+	updated, cmd := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("do command is nil")
+	}
+
+	updated, quitCmd := updateScreen(t, updated, firstCommandMessage(t, cmd))
+	if quitCmd != nil {
+		t.Fatalf("quit command after fatal result = %p, want nil", quitCmd)
+	}
+	if !updated.fatalError {
+		t.Fatal("fatal error is false, want true")
+	}
+	if updated.requestInFlight {
+		t.Fatal("request in flight is true, want false")
+	}
+	if got := updated.responseError; got == "" {
+		t.Fatal("response error is empty, want fatal error message")
+	}
+	if got := updated.renderResponse(); !strings.Contains(got, "Fatal error:") || !strings.Contains(got, "Press any key to quit.") {
+		t.Fatalf("response view = %q, want fatal prompt", got)
+	}
+
+	_, quitCmd = updateScreen(t, updated, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	if quitCmd == nil {
+		t.Fatal("quit command is nil")
+	}
+	quitMsg := quitCmd()
+	if _, ok := quitMsg.(tea.QuitMsg); !ok {
+		t.Fatalf("quit command returned %T, want tea.QuitMsg", quitMsg)
 	}
 }
 
