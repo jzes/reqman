@@ -16,6 +16,7 @@ import (
 	"github.com/jzes/reqman/internal/presentation/panels/headers"
 	"github.com/jzes/reqman/internal/presentation/panels/response"
 	presentationrequest "github.com/jzes/reqman/internal/presentation/request"
+	"github.com/jzes/reqman/internal/presentation/theme"
 )
 
 const (
@@ -27,8 +28,6 @@ const (
 	defaultScreenHeight  = 30
 	focusMarker          = "❯ "
 	commandPrompt        = "❯"
-	defaultPurple        = "#6272A4"
-	focusedPurple        = "#C084FC"
 )
 
 type focusedPanel int
@@ -47,23 +46,24 @@ var (
 	ansiPrefixPattern   = regexp.MustCompile(`^(?:\x1b\[[0-9;]*m)+`)
 	ansiSuffixPattern   = regexp.MustCompile(`(?:\x1b\[[0-9;]*m)+$`)
 	ansiSequencePattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+	appTheme            = theme.Terminal()
 	titleStyle          = lipgloss.NewStyle().Bold(true)
-	focusedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color(focusedPurple))
+	focusedStyle        = lipgloss.NewStyle().Foreground(theme.Color(appTheme.Focused))
 	topBarStyle         = lipgloss.NewStyle().
-				Background(lipgloss.Color("#C084FC")).
-				Foreground(lipgloss.Color("#1F1235"))
+				Background(theme.Color(appTheme.Primary)).
+				Foreground(theme.Color(appTheme.PrimaryText))
 	sidebarStyle = lipgloss.NewStyle().
 			Width(25).
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color(defaultPurple)).
+			BorderForeground(theme.Color(appTheme.DefaultBorder)).
 			Align(lipgloss.Left)
 	inputStyle = lipgloss.NewStyle().
 			Width(25).
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color(defaultPurple))
+			BorderForeground(theme.Color(appTheme.DefaultBorder))
 	helpPanelStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#3B82F6"))
+			BorderForeground(theme.Color(appTheme.Help))
 )
 
 type Screen struct {

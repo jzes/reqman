@@ -1,14 +1,17 @@
 package commandpanel
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/jzes/reqman/internal/presentation/theme"
 )
+
+var commandTheme = theme.Terminal()
 
 type Action int
 
@@ -133,13 +136,13 @@ func renderCommandHelpTitle(width int) string {
 	label := " Commands "
 	contentWidth := width - lipgloss.Width(leftCap) - lipgloss.Width(rightCap)
 	if contentWidth <= 0 {
-		return commandHelpTitleStyle(commandHelpGradientColor(0, 1)).Render(truncateRunes(label, width))
+		return commandHelpTitleStyle(commandTitleColor()).Render(truncateRunes(label, width))
 	}
 
 	leftPadding := max(0, (contentWidth-lipgloss.Width(label))/2)
 	rightPadding := max(0, contentWidth-leftPadding-lipgloss.Width(label))
 	content := strings.Repeat(" ", leftPadding) + label + strings.Repeat(" ", rightPadding)
-	return commandHelpCapStyle(commandHelpGradientColor(0, contentWidth)).Render(leftCap) + renderCommandHelpGradient(content, contentWidth) + commandHelpCapStyle(commandHelpGradientColor(contentWidth-1, contentWidth)).Render(rightCap)
+	return commandHelpCapStyle(commandTitleColor()).Render(leftCap) + renderCommandHelpGradient(content, contentWidth) + commandHelpCapStyle(commandTitleColor()).Render(rightCap)
 }
 
 func renderCommandHelpTable(width int) string {
@@ -171,28 +174,18 @@ func renderCommandHelpGradient(text string, width int) string {
 	var builder strings.Builder
 	column := 0
 	for _, r := range padOrTruncate(text, width) {
-		builder.WriteString(commandHelpTitleStyle(commandHelpGradientColor(column, width)).Render(string(r)))
+		builder.WriteString(commandHelpTitleStyle(commandTitleColor()).Render(string(r)))
 		column += lipgloss.Width(string(r))
 	}
 	return builder.String()
 }
 
-func commandHelpGradientColor(column int, width int) lipgloss.Color {
-	if width <= 1 {
-		return lipgloss.Color("#B8F7C8")
-	}
-
-	start := [3]int{0xB8, 0xF7, 0xC8}
-	end := [3]int{0x50, 0xFA, 0x7B}
-	ratio := float64(column) / float64(width-1)
-	r := int(float64(start[0]) + (float64(end[0]-start[0]) * ratio))
-	g := int(float64(start[1]) + (float64(end[1]-start[1]) * ratio))
-	b := int(float64(start[2]) + (float64(end[2]-start[2]) * ratio))
-	return lipgloss.Color(fmt.Sprintf("#%02X%02X%02X", r, g, b))
+func commandTitleColor() lipgloss.Color {
+	return theme.Color(commandTheme.Command)
 }
 
 func commandHelpTitleStyle(color lipgloss.Color) lipgloss.Style {
-	return lipgloss.NewStyle().Background(color).Foreground(lipgloss.Color("#102A1A"))
+	return lipgloss.NewStyle().Background(color).Foreground(theme.Color(commandTheme.CommandText))
 }
 
 func commandHelpCapStyle(color lipgloss.Color) lipgloss.Style {
@@ -202,11 +195,11 @@ func commandHelpCapStyle(color lipgloss.Color) lipgloss.Style {
 var (
 	commandPanelStyle = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("#50FA7B"))
+				BorderForeground(theme.Color(commandTheme.Command))
 	commandHelpTableStyle = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("#50FA7B"))
-	focusedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#C084FC"))
+				BorderForeground(theme.Color(commandTheme.Command))
+	focusedStyle        = lipgloss.NewStyle().Foreground(theme.Color(commandTheme.Focused))
 	ansiPrefixPattern   = regexp.MustCompile(`^(?:\x1b\[[0-9;]*m)+`)
 	ansiSuffixPattern   = regexp.MustCompile(`(?:\x1b\[[0-9;]*m)+$`)
 	ansiSequencePattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
