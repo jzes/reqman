@@ -14,6 +14,8 @@ import (
 	presentationRequest "github.com/jzes/reqman/internal/presentation/request"
 )
 
+const newRequestName = "(new)"
+
 func (scr *Screen) selectNextRequest() {
 	if scr.selectedRequestIndex < len(scr.requestPaths)-1 {
 		scr.selectedRequestIndex++
@@ -38,15 +40,46 @@ func (scr *Screen) selectPreviousRequest() {
 	}
 }
 
-func (scr *Screen) createRequest(name string) {
+func normalizedRequestName(name string) string {
 	name = strings.TrimSpace(name)
-	if name == "" || scr.requestWriter == nil {
-		return
+	if name == "" {
+		return ""
 	}
 	if filepath.Ext(name) != ".curl" {
 		name += ".curl"
 	}
-	name = filepath.Base(name)
+	return filepath.Base(name)
+}
+
+func (scr *Screen) createRequest() {
+	newRequest := request.Request{
+		Name:    newRequestName,
+		Method:  request.MethodGet,
+		Headers: request.NewHeaders(),
+	}
+
+	scr.requestPaths = append(scr.requestPaths, newRequest.Name)
+	scr.requests = append(scr.requests, newRequest)
+	scr.loadedRequests[len(scr.requests)-1] = true
+	scr.selectedRequestIndex = len(scr.requestPaths) - 1
+	scr.ensureSelectedRequestVisible()
+	scr.showSelectedRequestURL()
+	scr.showSelectedRequestHeaders()
+	scr.showSelectedRequestBody()
+	scr.showSelectedRequestMethod()
+	scr.clearResponse()
+	scr.focusedPanel = focusedPanelURL
+	scr.insertMode = true
+	scr.url.EnterInsertMode()
+	scr.methodSelectorOpen = false
+	scr.body.Blur()
+}
+
+func (scr *Screen) createNamedRequest(name string) {
+	name = normalizedRequestName(name)
+	if name == "" || scr.requestWriter == nil {
+		return
+	}
 
 	newRequest := request.Request{
 		Name:    name,
@@ -154,15 +187,23 @@ func (scr *Screen) syncURLToSelectedRequest() {
 	scr.responseError = ""
 }
 
-func (scr *Screen) writeSelectedRequest() bool {
+func (scr *Screen) writeSelectedRequest(name string) bool {
 	if scr.requestWriter == nil || !scr.loadSelectedRequest() {
 		return false
 	}
 
-	if err := scr.requestWriter.WriteToFile(scr.requests[scr.selectedRequestIndex]); err != nil {
+	requestToWrite := scr.requests[scr.selectedRequestIndex]
+	if name = normalizedRequestName(name); name != "" {
+		requestToWrite.Name = name
+		requestToWrite.Path = ""
+	}
+
+	if err := scr.requestWriter.WriteToFile(requestToWrite); err != nil {
 		scr.showResponseError(fmt.Sprintf("Failed to save request: %v", err))
 		return false
 	}
+	scr.requests[scr.selectedRequestIndex] = requestToWrite
+	scr.requestPaths[scr.selectedRequestIndex] = requestToWrite.Name
 	scr.responseError = ""
 	return true
 }

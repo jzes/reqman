@@ -68,6 +68,80 @@ func TestCommandPanelWriteCommandSavesRequest(t *testing.T) {
 	}
 }
 
+func TestCommandPanelWriteCommandSavesRequestWithName(t *testing.T) {
+	parsedURL, err := request.NewURL("http://localhost/books")
+	if err != nil {
+		t.Fatalf("NewURL() error = %v", err)
+	}
+
+	writer := &fakeWriter{}
+	screen := newScreenWithDeps([]request.Request{{Name: "req.curl", Path: "req.curl", URL: parsedURL}}, writer, nil)
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("w nova-req")})
+	screen, cmd := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		t.Fatalf("command after ❯w nova-req = %p, want nil", cmd)
+	}
+	if got := writer.calls; got != 1 {
+		t.Fatalf("write calls = %d, want 1", got)
+	}
+	if got := writer.request.Name; got != "nova-req.curl" {
+		t.Fatalf("written request name = %q, want nova-req.curl", got)
+	}
+	if got := writer.request.Path; got != "" {
+		t.Fatalf("written request path = %q, want empty", got)
+	}
+	if got := screen.requests[screen.selectedRequestIndex].Name; got != "nova-req.curl" {
+		t.Fatalf("selected request name = %q, want nova-req.curl", got)
+	}
+	if got := screen.requestPaths[screen.selectedRequestIndex]; got != "nova-req.curl" {
+		t.Fatalf("selected request path = %q, want nova-req.curl", got)
+	}
+	if screen.commandPanel.Open {
+		t.Fatal("command panel is open, want closed")
+	}
+}
+
+func TestCommandPanelAddCommandCreatesEmptyRequest(t *testing.T) {
+	writer := &fakeWriter{}
+	screen := newScreenWithDeps(nil, writer, nil)
+
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	screen, _ = updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	screen, cmd := updateScreen(t, screen, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		t.Fatalf("command after ❯a = %p, want nil", cmd)
+	}
+	if got := writer.calls; got != 0 {
+		t.Fatalf("write calls = %d, want 0", got)
+	}
+	if len(screen.requests) != 1 {
+		t.Fatalf("requests len = %d, want 1", len(screen.requests))
+	}
+	if got := screen.requests[0].Name; got != newRequestName {
+		t.Fatalf("new request name = %q, want %q", got, newRequestName)
+	}
+	if got := screen.requests[0].Method; got != request.MethodGet {
+		t.Fatalf("new request method = %q, want GET", got)
+	}
+	if got := screen.url.Value(); got != "" {
+		t.Fatalf("url value = %q, want empty", got)
+	}
+	if got := screen.body.Value(); got != "" {
+		t.Fatalf("body value = %q, want empty", got)
+	}
+	if screen.focusedPanel != focusedPanelURL {
+		t.Fatalf("focused panel = %v, want URL", screen.focusedPanel)
+	}
+	if !screen.insertMode {
+		t.Fatal("insert mode is false, want true")
+	}
+	if screen.commandPanel.Open {
+		t.Fatal("command panel is open, want closed")
+	}
+}
+
 func TestCommandPanelWriteCommandShowsSaveError(t *testing.T) {
 	parsedURL, err := request.NewURL("http://localhost/books")
 	if err != nil {
