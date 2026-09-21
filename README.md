@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/b50dc84f-f418-4d58-9e1f-25f030c8509f" alt="Reqman cover" width="900">
+</p>
+
 # reqman
 
 Reqman is a terminal-based HTTP client for managing and sending requests from files. It aims to be simple, fast, file based, and friendly to vim-style navigation.
