@@ -34,10 +34,12 @@ func TestHandleKeyReturnsActions(t *testing.T) {
 	}{
 		{input: "❯q", want: ActionQuit},
 		{input: "❯w", want: ActionWrite},
+		{input: "❯w new-request", want: ActionWrite},
 		{input: "❯r", want: ActionRun},
 		{input: "❯wr", want: ActionWriteRun},
 		{input: "❯wq", want: ActionWriteQuit},
 		{input: "❯?", want: ActionHelp},
+		{input: "❯a", want: ActionAdd},
 		{input: "❯unknown", want: ActionNone},
 	}
 
@@ -69,6 +71,18 @@ func TestHandleKeyEditsInput(t *testing.T) {
 	panel.HandleKey(tea.KeyMsg{Type: tea.KeyBackspace})
 	if panel.Input != "❯w" {
 		t.Fatalf("input after backspace = %q, want ❯w", panel.Input)
+	}
+}
+
+func TestHandleKeyEditsInputWithSpace(t *testing.T) {
+	panel := Panel{Open: true, Input: "❯"}
+
+	panel.HandleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'w'}})
+	panel.HandleKey(tea.KeyMsg{Type: tea.KeySpace})
+	panel.HandleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("nova_req")})
+
+	if panel.Input != "❯w nova_req" {
+		t.Fatalf("input = %q, want ❯w nova_req", panel.Input)
 	}
 }
 
