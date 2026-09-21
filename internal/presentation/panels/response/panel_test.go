@@ -6,7 +6,10 @@ import (
 	"time"
 
 	"github.com/jzes/reqman/internal/domain/request"
+	"github.com/jzes/reqman/internal/presentation/theme"
 )
+
+var responseTestTheme = theme.Terminal()
 
 func TestTabSelection(t *testing.T) {
 	panel := NewPanel()
@@ -105,5 +108,5 @@ func TestRawTabRendersEmptyHeadersAndBody(t *testing.T) {
 }
 
 func testOptions() ViewOptions {
-	return ViewOptions{FocusedColor: "#50FA7B", DefaultColor: "#6272A4"}
+	return ViewOptions{FocusedColor: responseTestTheme.Focused, DefaultColor: responseTestTheme.DefaultBorder}
 }

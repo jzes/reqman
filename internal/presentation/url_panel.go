@@ -149,11 +149,11 @@ func (p urlPanel) Style(style lipgloss.Style, focused bool) lipgloss.Style {
 	}
 	switch p.mode {
 	case urlPanelModeNavigate:
-		return style.BorderForeground(lipgloss.Color("#50FA7B"))
+		return style.BorderForeground(themeColor(appTheme.Navigate))
 	case urlPanelModeInsert:
-		return style.BorderForeground(lipgloss.Color("#FFB86C"))
+		return style.BorderForeground(themeColor(appTheme.Insert))
 	default:
-		return style.BorderForeground(lipgloss.Color(focusedPurple))
+		return style.BorderForeground(themeColor(appTheme.Focused))
 	}
 }
 

@@ -11,7 +11,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/jzes/reqman/internal/presentation/theme"
 )
+
+var editorTheme = theme.Terminal()
 
 type Mode int
 
@@ -192,11 +196,11 @@ func (p Panel) Style(style lipgloss.Style, focused bool) lipgloss.Style {
 	}
 	switch p.mode {
 	case NavigateMode:
-		return style.BorderForeground(lipgloss.Color("#50FA7B"))
+		return style.BorderForeground(theme.Color(editorTheme.Navigate))
 	case InsertMode:
-		return style.BorderForeground(lipgloss.Color("#FFB86C"))
+		return style.BorderForeground(theme.Color(editorTheme.Insert))
 	default:
-		return style.BorderForeground(lipgloss.Color("#C084FC"))
+		return style.BorderForeground(theme.Color(editorTheme.Focused))
 	}
 }
 

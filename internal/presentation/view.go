@@ -143,35 +143,25 @@ func renderHelpTitleBar(width int) string {
 	leftPadding := max(0, (contentWidth-lipgloss.Width(label))/2)
 	rightPadding := max(0, contentWidth-leftPadding-lipgloss.Width(label))
 	content := strings.Repeat(" ", leftPadding) + label + strings.Repeat(" ", rightPadding)
-	return helpTitleCapStyle(helpGradientColor(0, contentWidth)).Render(leftCap) + renderHelpTitleGradient(content, contentWidth) + helpTitleCapStyle(helpGradientColor(contentWidth-1, contentWidth)).Render(rightCap)
+	return helpTitleCapStyle(helpTitleColor()).Render(leftCap) + renderHelpTitleContent(content, contentWidth) + helpTitleCapStyle(helpTitleColor()).Render(rightCap)
 }
 
-func renderHelpTitleGradient(text string, width int) string {
+func renderHelpTitleContent(text string, width int) string {
 	var builder strings.Builder
 	column := 0
 	for _, r := range padOrTruncate(text, width) {
-		builder.WriteString(helpTitleStyle(helpGradientColor(column, width)).Render(string(r)))
+		builder.WriteString(helpTitleStyle(helpTitleColor()).Render(string(r)))
 		column += lipgloss.Width(string(r))
 	}
 	return builder.String()
 }
 
-func helpGradientColor(column int, width int) lipgloss.Color {
-	if width <= 1 {
-		return lipgloss.Color("#93C5FD")
-	}
-
-	start := [3]int{0x93, 0xC5, 0xFD}
-	end := [3]int{0x1D, 0x4E, 0xD8}
-	ratio := float64(column) / float64(width-1)
-	r := int(float64(start[0]) + (float64(end[0]-start[0]) * ratio))
-	g := int(float64(start[1]) + (float64(end[1]-start[1]) * ratio))
-	b := int(float64(start[2]) + (float64(end[2]-start[2]) * ratio))
-	return lipgloss.Color(fmt.Sprintf("#%02X%02X%02X", r, g, b))
+func helpTitleColor() lipgloss.Color {
+	return themeColor(appTheme.Help)
 }
 
 func helpTitleStyle(color lipgloss.Color) lipgloss.Style {
-	return lipgloss.NewStyle().Background(color).Foreground(lipgloss.Color("#EFF6FF")).Bold(true)
+	return lipgloss.NewStyle().Background(color).Foreground(themeColor(appTheme.HelpText)).Bold(true)
 }
 
 func helpTitleCapStyle(color lipgloss.Color) lipgloss.Style {
@@ -263,23 +253,23 @@ func renderTopBar(width int) string {
 	contentWidth := width - lipgloss.Width(leftCap) - lipgloss.Width(rightCap)
 	available := contentWidth - lipgloss.Width(left) - lipgloss.Width(right)
 	if available < 1 {
-		content := renderTopBarGradient(padOrTruncate(left, contentWidth), contentWidth, contentWidth)
-		return topBarCapStyle(topBarGradientColor(0, contentWidth)).Render(leftCap) + content + topBarCapStyle(topBarGradientColor(contentWidth-1, contentWidth)).Render(rightCap)
+		content := renderTopBarContent(padOrTruncate(left, contentWidth), contentWidth, contentWidth)
+		return topBarCapStyle(topBarColor()).Render(leftCap) + content + topBarCapStyle(topBarColor()).Render(rightCap)
 	}
 
 	rightStart := lipgloss.Width(left) + available
-	content := renderTopBarGradient(left+strings.Repeat(" ", available)+right, contentWidth, rightStart)
-	return topBarCapStyle(topBarGradientColor(0, contentWidth)).Render(leftCap) + content + topBarCapStyle(topBarGradientColor(contentWidth-1, contentWidth)).Render(rightCap)
+	content := renderTopBarContent(left+strings.Repeat(" ", available)+right, contentWidth, rightStart)
+	return topBarCapStyle(topBarColor()).Render(leftCap) + content + topBarCapStyle(topBarColor()).Render(rightCap)
 }
 
-func renderTopBarGradient(text string, width int, whiteFromColumn int) string {
+func renderTopBarContent(text string, width int, alternateFromColumn int) string {
 	var builder strings.Builder
 	column := 0
 	for _, r := range padOrTruncate(text, width) {
-		color := topBarGradientColor(column, width)
+		color := topBarColor()
 		style := topBarStyle.Background(color)
-		if column >= whiteFromColumn {
-			style = style.Foreground(lipgloss.Color("#FFFFFF"))
+		if column >= alternateFromColumn {
+			style = style.Foreground(themeColor(appTheme.PrimaryAlt))
 		}
 		builder.WriteString(style.Render(string(r)))
 		column += lipgloss.Width(string(r))
@@ -287,22 +277,16 @@ func renderTopBarGradient(text string, width int, whiteFromColumn int) string {
 	return builder.String()
 }
 
-func topBarGradientColor(column int, width int) lipgloss.Color {
-	if width <= 1 {
-		return lipgloss.Color("#C084FC")
-	}
-
-	start := [3]int{0xC0, 0x84, 0xFC}
-	end := [3]int{0x6D, 0x28, 0xD9}
-	ratio := float64(column) / float64(width-1)
-	r := int(float64(start[0]) + (float64(end[0]-start[0]) * ratio))
-	g := int(float64(start[1]) + (float64(end[1]-start[1]) * ratio))
-	b := int(float64(start[2]) + (float64(end[2]-start[2]) * ratio))
-	return lipgloss.Color(fmt.Sprintf("#%02X%02X%02X", r, g, b))
+func topBarColor() lipgloss.Color {
+	return themeColor(appTheme.Primary)
 }
 
 func topBarCapStyle(color lipgloss.Color) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(color)
+}
+
+func themeColor(value string) lipgloss.Color {
+	return lipgloss.Color(value)
 }
 
 func (scr Screen) renderResponse(widths ...int) string {
@@ -328,8 +312,8 @@ func (scr Screen) renderResponse(widths ...int) string {
 	}
 
 	return scr.responsePanel.View(scr.response, width, response.ViewOptions{
-		FocusedColor: focusedPurple,
-		DefaultColor: defaultPurple,
+		FocusedColor: appTheme.Focused,
+		DefaultColor: appTheme.DefaultBorder,
 	})
 }
 
@@ -340,10 +324,10 @@ func (scr Screen) renderDoButton() string {
 
 	panelStyle := inputStyle.Width(doButtonContentWidth + 2)
 	if scr.focusedPanel == focusedPanelDoButton {
-		panelStyle = panelStyle.BorderForeground(lipgloss.Color(focusedPurple))
+		panelStyle = panelStyle.BorderForeground(themeColor(appTheme.Focused))
 	}
 	if scr.requestInFlight {
-		panelStyle = panelStyle.BorderForeground(lipgloss.Color("#F1FA8C"))
+		panelStyle = panelStyle.BorderForeground(themeColor(appTheme.Pending))
 	}
 
 	content := "Ready"
@@ -385,9 +369,9 @@ func styleForPanel(style lipgloss.Style, focused bool, insertMode bool) lipgloss
 		return style
 	}
 	if insertMode {
-		return style.BorderForeground(lipgloss.Color("#50FA7B"))
+		return style.BorderForeground(themeColor(appTheme.Insert))
 	}
-	return style.BorderForeground(lipgloss.Color(focusedPurple))
+	return style.BorderForeground(themeColor(appTheme.Focused))
 }
 
 func renderPanelWithTitle(style lipgloss.Style, title string, content string) string {

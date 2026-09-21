@@ -165,9 +165,9 @@ func TestResponseInsertModeRendersGreenBorder(t *testing.T) {
 	screen.insertMode = true
 
 	view := screen.View()
-	greenBorder := lipgloss.NewStyle().Foreground(lipgloss.Color("#50FA7B")).Render("╭")
-	if !strings.Contains(view, greenBorder) {
-		t.Fatalf("response insert mode view does not contain green border: %q", view)
+	insertBorder := lipgloss.NewStyle().Foreground(themeColor(appTheme.Insert)).Render("╭")
+	if !strings.Contains(view, insertBorder) {
+		t.Fatalf("response insert mode view does not contain insert border: %q", view)
 	}
 }
 
