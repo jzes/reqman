@@ -179,7 +179,7 @@ func renderHelpContent(width int, height int) string {
 		"- Response shows status, body, headers, raw data, and request stats.",
 		"Navigation is modal. In normal mode, use h/j/k/l to move between panels, i to enter the current panel editing mode, and : to open commands. In text fields, the first i opens internal navigation and another i starts inserting text.",
 		"In editing mode, Esc returns to field navigation or leaves the panel editing mode. Headers uses Tab and Shift+Tab to switch between key and value. Response uses [ and ] to switch tabs.",
-		"Main commands: :w saves, :r runs, :wr saves and runs, :wq saves and quits, :q quits, and :? opens this help. Press Esc to close this panel.",
+		"Main commands: :a creates a new request, :w saves, :w name saves as name.curl, :r runs, :wr saves and runs, :wq saves and quits, :q quits, and :? opens this help. Press Esc to close this panel.",
 	}
 
 	lines := make([]string, 0, height)

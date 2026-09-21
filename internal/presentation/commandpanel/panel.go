@@ -23,6 +23,7 @@ const (
 	ActionWriteRun
 	ActionWriteQuit
 	ActionHelp
+	ActionAdd
 )
 
 type Panel struct {
@@ -52,7 +53,12 @@ func (p *Panel) HandleKey(msg tea.KeyMsg) Action {
 	case tea.KeyEsc:
 		p.Close()
 	case tea.KeyEnter:
-		switch p.Input {
+		fields := strings.Fields(p.Input)
+		command := ""
+		if len(fields) > 0 {
+			command = fields[0]
+		}
+		switch command {
 		case "❯q":
 			p.Close()
 			return ActionQuit
@@ -71,11 +77,16 @@ func (p *Panel) HandleKey(msg tea.KeyMsg) Action {
 		case "❯?":
 			p.Close()
 			return ActionHelp
+		case "❯a":
+			p.Close()
+			return ActionAdd
 		default:
 			p.Close()
 		}
 	case tea.KeyRunes:
 		p.Input += string(msg.Runes)
+	case tea.KeySpace:
+		p.Input += " "
 	case tea.KeyBackspace:
 		p.Input, _ = removeLastRune(p.Input)
 		if p.Input == "" {
@@ -150,7 +161,8 @@ func renderCommandHelpTable(width int) string {
 		command     string
 		description string
 	}{
-		{"w", "Save request"},
+		{"a", "New request"},
+		{"w [name]", "Save request"},
 		{"r", "Run request"},
 		{"q", "Quit"},
 		{"?", "Open help"},
@@ -158,7 +170,7 @@ func renderCommandHelpTable(width int) string {
 		{"wq", "Save and quit"},
 	}
 
-	commandColumnWidth := 7
+	commandColumnWidth := 8
 	contentWidth := max(0, width-commandHelpTableStyle.GetHorizontalFrameSize())
 	descriptionColumnWidth := max(0, contentWidth-commandColumnWidth-3)
 	lines := make([]string, 0, len(rows)+1)

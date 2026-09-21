@@ -1,6 +1,8 @@
 package presentation
 
 import (
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/jzes/reqman/internal/domain/request"
@@ -29,12 +31,13 @@ func (scr Screen) processKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return scr, nil
 	}
 	if scr.commandPanel.Open {
+		commandInput := scr.commandPanel.Input
 		action := scr.commandPanel.HandleKey(msg)
 		switch action {
 		case presentationcommandpanel.ActionQuit:
 			return scr, tea.Quit
 		case presentationcommandpanel.ActionWrite:
-			scr.writeSelectedRequest()
+			scr.writeSelectedRequest(writeCommandName(commandInput))
 		case presentationcommandpanel.ActionRun:
 			if !scr.requestInFlight {
 				if cmd := scr.startRequest(); cmd != nil {
@@ -42,7 +45,7 @@ func (scr Screen) processKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case presentationcommandpanel.ActionWriteRun:
-			if !scr.writeSelectedRequest() {
+			if !scr.writeSelectedRequest("") {
 				return scr, nil
 			}
 			if !scr.requestInFlight {
@@ -51,12 +54,14 @@ func (scr Screen) processKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case presentationcommandpanel.ActionWriteQuit:
-			if !scr.writeSelectedRequest() {
+			if !scr.writeSelectedRequest("") {
 				return scr, nil
 			}
 			return scr, tea.Quit
 		case presentationcommandpanel.ActionHelp:
 			scr.helpOpen = true
+		case presentationcommandpanel.ActionAdd:
+			scr.createRequest()
 		}
 		return scr, nil
 	}
@@ -194,7 +199,7 @@ func (scr Screen) processNewRequestPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyEnter:
 		name := scr.newRequestPanel.Input
 		scr.newRequestPanel.Close()
-		scr.createRequest(name)
+		scr.createNamedRequest(name)
 	case tea.KeyRunes:
 		scr.newRequestPanel.Input += string(msg.Runes)
 	case tea.KeyBackspace:
@@ -202,6 +207,14 @@ func (scr Screen) processNewRequestPanel(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return scr, nil
+}
+
+func writeCommandName(input string) string {
+	fields := strings.Fields(input)
+	if len(fields) < 2 || fields[0] != commandPrompt+"w" {
+		return ""
+	}
+	return fields[1]
 }
 
 func (scr Screen) processMethodSelector(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
