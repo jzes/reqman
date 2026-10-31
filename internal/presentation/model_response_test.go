@@ -89,6 +89,27 @@ func TestResponseBodyTabFormatsJSON(t *testing.T) {
 	}
 }
 
+func TestResponseBodyWrapsLongLines(t *testing.T) {
+	screen := newScreen([]request.Request{{Name: "req.curl"}})
+	screen.hasResponse = true
+	screen.responsePanel.SelectTab(response.TabBody)
+	screen.response = request.Response{Body: `{"message":"` + strings.Repeat("x", 120) + `END"}`}
+	for _, width := range []int{40, 60, 80} {
+		view := screen.renderResponse(width)
+		if !strings.Contains(view, `END"`) {
+			t.Fatalf("width %d: body tail missing: %q", width, view)
+		}
+		for _, line := range strings.Split(view, "\n") {
+			if lipgloss.Width(line) > width {
+				t.Fatalf("line exceeds width %d: %q", width, line)
+			}
+		}
+	}
+	if !strings.Contains(screen.response.Body, strings.Repeat("x", 120)) {
+		t.Fatal("response body was modified")
+	}
+}
+
 func TestResponseHeadersTabRendersSortedTable(t *testing.T) {
 	screen := newScreen([]request.Request{{Name: "req.curl"}})
 	screen.hasResponse = true

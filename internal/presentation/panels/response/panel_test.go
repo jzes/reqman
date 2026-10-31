@@ -5,6 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/jzes/reqman/internal/domain/request"
 	"github.com/jzes/reqman/internal/presentation/theme"
 )
@@ -104,6 +107,61 @@ func TestRawTabRendersEmptyHeadersAndBody(t *testing.T) {
 	view := panel.View(request.Response{}, 40, testOptions())
 	if !strings.Contains(view, "Headers:") || !strings.Contains(view, "(empty)") {
 		t.Fatalf("raw empty view = %q, want empty placeholders", view)
+	}
+}
+
+func TestResponseBodyWrapPreservesContent(t *testing.T) {
+	for _, body := range []string{
+		`{"message":"` + strings.Repeat("abcdefghij", 12) + `END"}`,
+		strings.Repeat("long text with spaces  ", 6) + "END",
+		"first line\n\n  " + strings.Repeat("abc", 30) + "\nlast line",
+		strings.Repeat("日本語🙂e\u0301", 20) + "END",
+		"",
+	} {
+		for _, tab := range []Tab{TabBody, TabRaw} {
+			panel := NewPanel()
+			panel.SelectTab(tab)
+			for _, width := range []int{20, 40, 80} {
+				content := ansi.Strip(panel.renderSelectedTabContent(request.Response{Body: body}, width, testOptions()))
+				lines := strings.Split(content, "\n")
+				var displayed strings.Builder
+				inBody := tab == TabBody
+				for _, line := range lines[1 : len(lines)-1] {
+					if got := lipgloss.Width(line); got != width {
+						t.Fatalf("tab %v: line width = %d, want %d: %q", tab, got, width, line)
+					}
+					text := strings.TrimSuffix(strings.TrimPrefix(line, "│ "), " │")
+					if inBody {
+						displayed.WriteString(text)
+					} else if strings.TrimSpace(text) == "Body:" {
+						inBody = true
+					}
+				}
+				want := body
+				if tab == TabBody {
+					want = formatJSONBody(body)
+				} else if body == "" {
+					want = "(empty)"
+				}
+				// Ignore layout padding and line breaks; every non-whitespace
+				// character (including the end of a long line) must survive.
+				compact := func(s string) string { return strings.Join(strings.Fields(s), "") }
+				if got := compact(displayed.String()); got != compact(want) {
+					t.Fatalf("tab %v, width %d: displayed %q, want %q", tab, width, got, compact(want))
+				}
+			}
+		}
+	}
+}
+
+func TestBodyWrapPreservesWhitespaceAndExistingLines(t *testing.T) {
+	panel := NewPanel()
+	panel.SelectTab(TabBody)
+	body := "abc  defgh\n\n  ijklmnop"
+	got := panel.renderSelectedTab(request.Response{Body: body}, 9)
+	want := "abc  \ndefgh\n\n  ijk\nlmnop"
+	if got != want {
+		t.Fatalf("wrapped body = %q, want %q", got, want)
 	}
 }
 

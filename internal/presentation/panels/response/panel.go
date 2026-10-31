@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/jzes/reqman/internal/domain/request"
 )
@@ -200,11 +201,11 @@ func (p Panel) selectedTabPosition() (int, int) {
 func (p Panel) renderSelectedTab(response request.Response, width int) string {
 	switch p.selectedTab {
 	case TabBody:
-		return formatJSONBody(response.Body)
+		return ansi.Hardwrap(formatJSONBody(response.Body), max(1, width-4), true)
 	case TabHeaders:
 		return renderHeaders(response, width)
 	case TabRaw:
-		return renderRaw(response)
+		return renderRaw(response, max(1, width-4))
 	default:
 		return renderStats(response)
 	}
@@ -242,7 +243,7 @@ func renderHeaders(response request.Response, width int) string {
 	return builder.String()
 }
 
-func renderRaw(response request.Response) string {
+func renderRaw(response request.Response, bodyWidth int) string {
 	var builder strings.Builder
 	fmt.Fprintf(&builder, "URL: %s\n", response.URL.String())
 	fmt.Fprintf(&builder, "Status: %s\n", response.Status)
@@ -262,7 +263,7 @@ func renderRaw(response request.Response) string {
 	if response.Body == "" {
 		builder.WriteString("  (empty)")
 	} else {
-		builder.WriteString(response.Body)
+		builder.WriteString(ansi.Hardwrap(response.Body, bodyWidth, true))
 	}
 
 	return strings.TrimRight(builder.String(), "\n")
