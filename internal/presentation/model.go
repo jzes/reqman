@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/jzes/reqman/internal/config"
 	"github.com/jzes/reqman/internal/domain/request"
 	presentationcommandpanel "github.com/jzes/reqman/internal/presentation/commandpanel"
 	"github.com/jzes/reqman/internal/presentation/jsoneditor"
@@ -67,6 +68,8 @@ var (
 )
 
 type Screen struct {
+	config               config.Config
+	editorCancel         context.CancelFunc
 	url                  urlPanel
 	body                 jsoneditor.Panel
 	methodList           list.Model
@@ -99,8 +102,9 @@ type Screen struct {
 	inFlightRequestID    int
 }
 
-func NewScreen(requestPaths []string, rw presentationrequest.RequestWriter, rd presentationrequest.RequestDoer, rl presentationrequest.RequestLoader) Screen {
+func NewScreen(requestPaths []string, rw presentationrequest.RequestWriter, rd presentationrequest.RequestDoer, rl presentationrequest.RequestLoader, cfg config.Config) Screen {
 	screen := Screen{
+		config:         cfg,
 		requestPaths:   requestPaths,
 		requests:       make([]request.Request, len(requestPaths)),
 		loadedRequests: make(map[int]bool),
@@ -128,6 +132,8 @@ func (m Screen) Init() tea.Cmd {
 
 func (m Screen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case bodyEditedMsg:
+		return m.finishBodyEdit(msg)
 	case tea.WindowSizeMsg:
 		return m.updateWindowSize(msg)
 	case presentationrequest.RequestResultMessage:

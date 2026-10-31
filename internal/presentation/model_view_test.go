@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/jzes/reqman/internal/config"
 	"github.com/jzes/reqman/internal/domain/request"
 )
 
@@ -41,7 +42,7 @@ func TestScreenLoadsOnlySelectedRequest(t *testing.T) {
 		"one.curl": {Name: "one.curl", Body: "one"},
 		"two.curl": {Name: "two.curl", Body: "two"},
 	}}
-	screen := NewScreen([]string{"one.curl", "two.curl"}, nil, nil, loader)
+	screen := NewScreen([]string{"one.curl", "two.curl"}, nil, nil, loader, config.Default())
 
 	if got := loader.calls["one.curl"]; got != 1 {
 		t.Fatalf("one.curl load calls = %d, want 1", got)

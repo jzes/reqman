@@ -8,10 +8,16 @@ import (
 	"github.com/jzes/reqman/internal/adapter/requestcurl"
 	"github.com/jzes/reqman/internal/adapter/requestfile"
 	"github.com/jzes/reqman/internal/adapter/requesthttp"
+	"github.com/jzes/reqman/internal/config"
 	"github.com/jzes/reqman/internal/presentation"
 )
 
 func main() {
+	cfg, err := config.Load()
+	if err != nil {
+		log.Printf("Error loading configuration: %v", err)
+		os.Exit(1)
+	}
 	requestsDir := "."
 	if len(os.Args) > 1 {
 		requestsDir = os.Args[1]
@@ -35,7 +41,7 @@ func main() {
 	}
 
 	program := tea.NewProgram(
-		presentation.NewScreen(requestPaths, writer, httpClient, fileSource),
+		presentation.NewScreen(requestPaths, writer, httpClient, fileSource, cfg),
 		tea.WithAltScreen(),
 	)
 	if _, err := program.Run(); err != nil {
