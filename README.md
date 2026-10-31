@@ -12,12 +12,28 @@ This project is in the early stages of development. It is not feature-complete y
 
 ## Installation
 
+### Homebrew (macOS and Linux)
+
+```sh
+brew install jzes/tap/reqman
+```
+
+The [official tap](https://github.com/jzes/homebrew-tap) installs release binaries
+with SHA-256 verification. Go is not required. To update:
+
+```sh
+brew update
+brew upgrade jzes/tap/reqman
+```
+
+### Release binaries and Go
+
 Download the release archive for your platform from GitHub Releases, extract it, and move the `reqman` binary to a directory in your `PATH`.
 
 Release artifacts are generated for:
 
-- Linux x86_64
-- macOS ARM64 (Apple Silicon / M1+)
+- Linux x86_64 and ARM64
+- macOS Intel and ARM64 (Apple Silicon / M1+)
 
 You can also install from source with Go:
 
@@ -169,3 +185,7 @@ git push origin v0.1.0
 ```
 
 The release workflow runs GoReleaser and uploads the generated archives and checksums to the GitHub release.
+
+After publishing a stable release, update the version, URLs, and SHA-256 hashes
+in `Formula/reqman.rb` in [jzes/homebrew-tap](https://github.com/jzes/homebrew-tap).
+The tap is updated manually, following the same process as Morse.
