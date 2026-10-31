@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/jzes/reqman/internal/config"
 	"github.com/jzes/reqman/internal/domain/request"
 )
 
@@ -75,7 +76,7 @@ func newScreenWithDeps(requests []request.Request, writer *fakeWriter, doer *fak
 		paths[i] = path
 		requestsByPath[path] = req
 	}
-	return NewScreen(paths, writer, doer, fakeLoader{requests: requestsByPath})
+	return NewScreen(paths, writer, doer, fakeLoader{requests: requestsByPath}, config.Default())
 }
 
 type fakeLoader struct {

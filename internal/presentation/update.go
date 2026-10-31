@@ -5,6 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/jzes/reqman/internal/config"
 	"github.com/jzes/reqman/internal/domain/request"
 	presentationcommandpanel "github.com/jzes/reqman/internal/presentation/commandpanel"
 	"github.com/jzes/reqman/internal/presentation/jsoneditor"
@@ -19,9 +20,11 @@ func (scr Screen) updateWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 
 func (scr Screen) processKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if msg.Type == tea.KeyCtrlC {
+		scr.cancelBodyEdit()
 		return scr, tea.Quit
 	}
 	if scr.fatalError {
+		scr.cancelBodyEdit()
 		return scr, tea.Quit
 	}
 	if scr.helpOpen {
@@ -35,6 +38,7 @@ func (scr Screen) processKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		action := scr.commandPanel.HandleKey(msg)
 		switch action {
 		case presentationcommandpanel.ActionQuit:
+			scr.cancelBodyEdit()
 			return scr, tea.Quit
 		case presentationcommandpanel.ActionWrite:
 			scr.writeSelectedRequest(writeCommandName(commandInput))
@@ -57,6 +61,7 @@ func (scr Screen) processKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if !scr.writeSelectedRequest("") {
 				return scr, nil
 			}
+			scr.cancelBodyEdit()
 			return scr, tea.Quit
 		case presentationcommandpanel.ActionHelp:
 			scr.helpOpen = true
@@ -162,6 +167,9 @@ func (scr Screen) processNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return scr, cmd
 		}
 		if scr.focusedPanel == focusedPanelBody {
+			if scr.config.EditorMode != config.Internal {
+				return scr.startBodyEdit()
+			}
 			scr.insertMode = true
 			cmd := scr.body.EnterNavigationMode()
 			return scr, cmd

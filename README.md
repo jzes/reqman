@@ -50,6 +50,34 @@ Basic flow:
 5. Run the request with the Do button or with `:r`.
 6. Save changes with `:w`.
 
+## Body editor
+
+Reqman creates `~/.config/reqman/config.yaml` on first launch:
+
+```yaml
+editor-mode: internal
+```
+
+The only configuration key is `editor-mode`:
+
+- `internal`: use the built-in JSON editor (default).
+- `in-line`: suspend reqman and run `$EDITOR` in the same terminal.
+- `side-panel-tmux`: open `$EDITOR` in a tmux pane to the right.
+- `side-panel-herdr`: open `$EDITOR` in a Herdr pane to the right.
+- `gui`: run `$EDITOR` without controlling where its window opens.
+
+Press `i` with the body panel focused to edit. External modes require `$EDITOR`,
+which may include quoted paths and arguments, for example `EDITOR='nvim'` or
+`EDITOR='code --wait'`. GUI editors must wait until the file is closed (use
+`--wait` for VS Code); otherwise reqman cannot know when editing is complete.
+Side-panel modes require the corresponding multiplexer and CLI.
+
+The body is copied to a private directory inside the system temporary directory,
+using the request name with a `.json` extension. Save and close the editor to
+import the JSON body into reqman. Invalid JSON or editor failures preserve the
+previous body. Temporary files are removed when the editing session ends.
+Use `:w` to persist the updated request to its `.curl` file.
+
 ## TUI Controls
 
 Normal mode:
