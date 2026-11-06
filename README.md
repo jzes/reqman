@@ -26,6 +26,44 @@ brew update
 brew upgrade jzes/tap/reqman
 ```
 
+### Ubuntu (.deb)
+
+Download the `.deb` package from [GitHub Releases](https://github.com/jzes/reqman/releases/latest)
+matching the architecture reported by `dpkg --print-architecture` (`amd64` or `arm64`).
+From the download directory, install it with:
+
+```sh
+sudo apt install ./reqman_<version>_<architecture>.deb
+```
+
+Replace `<version>` and `<architecture>` with the values in the downloaded filename.
+Go is not required. To update, download the newer package and run the same command.
+These local packages do not configure an APT repository, so `apt upgrade` will not
+download new reqman releases automatically. To uninstall:
+
+```sh
+sudo apt remove reqman
+```
+
+### Arch Linux (.pkg.tar.zst)
+
+Download the `.pkg.tar.zst` package from [GitHub Releases](https://github.com/jzes/reqman/releases/latest)
+matching your architecture (`x86_64` for standard Arch Linux, or `aarch64` for Arch Linux ARM).
+From the download directory, install it with:
+
+```sh
+sudo pacman -U ./reqman-<version>-1-<architecture>.pkg.tar.zst
+```
+
+Replace `<version>` and `<architecture>` with the values in the downloaded filename.
+Neither Go nor an AUR account is required. To update, download the newer package and
+run the same command. These local packages do not configure a pacman repository,
+so `pacman -Syu` will not download new reqman releases automatically. To uninstall:
+
+```sh
+sudo pacman -R reqman
+```
+
 ### Release binaries and Go
 
 Download the release archive for your platform from GitHub Releases, extract it, and move the `reqman` binary to a directory in your `PATH`.
