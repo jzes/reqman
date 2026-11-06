@@ -27,6 +27,28 @@ archives:
       - LICENSE
       - README.md
 
+nfpms:
+  - id: reqman
+    package_name: reqman
+    ids:
+      - reqman
+    file_name_template: "{{ .ConventionalFileName }}"
+    homepage: https://github.com/jzes/reqman
+    maintainer: Jose Paulo
+    description: Terminal-based HTTP client for managing and sending requests from files.
+    license: MIT
+    formats:
+      - deb
+      - archlinux
+    bindir: /usr/bin
+    dependencies:
+      - ca-certificates
+    contents:
+      - src: LICENSE
+        dst: /usr/share/licenses/reqman/LICENSE
+      - src: README.md
+        dst: /usr/share/doc/reqman/README.md
+
 checksum:
   name_template: checksums.txt
 
